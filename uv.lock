@@ -5418,7 +5418,7 @@ wheels = [
 
 [[package]]
 name = "tonieesp"
-version = "1.0.0"
+version = "1.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "homeassistant", version = "2025.1.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
