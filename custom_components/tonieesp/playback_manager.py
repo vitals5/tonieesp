@@ -1,4 +1,5 @@
 """Playback Session and Resume Manager for TonieESP."""
+
 from __future__ import annotations
 
 import logging
@@ -89,7 +90,11 @@ class PlaybackManager:
         for key, sess_dict in sessions.items():
             try:
                 sess = PlaybackSession.from_dict(sess_dict)
-                effective_key = key if "_" in key else (make_session_key(sess.box_id, sess.tag_uid) if sess.box_id else key)
+                effective_key = (
+                    key
+                    if "_" in key
+                    else (make_session_key(sess.box_id, sess.tag_uid) if sess.box_id else key)
+                )
                 self._persistent_sessions[effective_key] = sess
             except Exception as err:
                 _LOGGER.warning("Could not load session for key %s: %s", key, err)
@@ -98,9 +103,7 @@ class PlaybackManager:
     async def async_save(self) -> None:
         """Save persistent sessions to storage."""
         data = {
-            "sessions": {
-                key: sess.to_dict() for key, sess in self._persistent_sessions.items()
-            }
+            "sessions": {key: sess.to_dict() for key, sess in self._persistent_sessions.items()}
         }
         await self.storage.async_save_sessions(data)
 
@@ -256,9 +259,7 @@ class PlaybackManager:
             )
             await self.ma_adapter.async_pause(player_entity_id)
 
-    def get_session_for_box_and_tag(
-        self, box_id: str, tag_uid: str
-    ) -> PlaybackSession | None:
+    def get_session_for_box_and_tag(self, box_id: str, tag_uid: str) -> PlaybackSession | None:
         """Get saved playback session for a specific box and tag."""
         return self._persistent_sessions.get(make_session_key(box_id, tag_uid))
 
@@ -277,9 +278,7 @@ class PlaybackManager:
         """Get active session for a specific box."""
         return self._active_sessions.get(box_id)
 
-    async def async_clear_session(
-        self, tag_uid: str, box_id: str | None = None
-    ) -> None:
+    async def async_clear_session(self, tag_uid: str, box_id: str | None = None) -> None:
         """Reset saved session for a tag on a specific box or all boxes."""
         if box_id:
             key = make_session_key(box_id, tag_uid)

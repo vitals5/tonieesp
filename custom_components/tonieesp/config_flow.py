@@ -1,4 +1,5 @@
 """Config flow for TonieESP integration."""
+
 from __future__ import annotations
 
 import logging
@@ -79,9 +80,7 @@ class TonieESPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial setup step with live-search and ESPHome device filter."""
         errors: dict[str, str] = {}
 
@@ -94,9 +93,7 @@ class TonieESPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             dev_reg = dr.async_get(self.hass)
             device_entry = dev_reg.async_get(dev_id)
             default_name = (
-                (device_entry.name_by_user or device_entry.name)
-                if device_entry
-                else "Toniebox"
+                (device_entry.name_by_user or device_entry.name) if device_entry else "Toniebox"
             )
             name = user_input.get(CONF_NAME) or default_name
 
@@ -139,9 +136,7 @@ class TonieESPOptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage Toniebox options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
@@ -178,9 +173,7 @@ class TonieESPOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_SEEK_STEP,
                     default=options.get(CONF_SEEK_STEP, DEFAULT_SEEK_STEP),
                 ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=5, max=60, step=5, mode=NumberSelectorMode.BOX
-                    )
+                    NumberSelectorConfig(min=5, max=60, step=5, mode=NumberSelectorMode.BOX)
                 ),
                 vol.Optional(
                     CONF_GESTURES_ENABLED,
@@ -190,33 +183,25 @@ class TonieESPOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_LEFT_TAP_ACTION,
                     default=options.get(CONF_LEFT_TAP_ACTION, DEFAULT_LEFT_TAP_ACTION),
                 ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN
-                    )
+                    SelectSelectorConfig(options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
                 ),
                 vol.Optional(
                     CONF_RIGHT_TAP_ACTION,
                     default=options.get(CONF_RIGHT_TAP_ACTION, DEFAULT_RIGHT_TAP_ACTION),
                 ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN
-                    )
+                    SelectSelectorConfig(options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
                 ),
                 vol.Optional(
                     CONF_LEFT_TILT_ACTION,
                     default=options.get(CONF_LEFT_TILT_ACTION, DEFAULT_LEFT_TILT_ACTION),
                 ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN
-                    )
+                    SelectSelectorConfig(options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
                 ),
                 vol.Optional(
                     CONF_RIGHT_TILT_ACTION,
                     default=options.get(CONF_RIGHT_TILT_ACTION, DEFAULT_RIGHT_TILT_ACTION),
                 ): SelectSelector(
-                    SelectSelectorConfig(
-                        options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN
-                    )
+                    SelectSelectorConfig(options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
                 ),
             }
         )

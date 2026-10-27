@@ -1,4 +1,5 @@
 """The TonieESP integration."""
+
 from __future__ import annotations
 
 import logging
@@ -49,9 +50,7 @@ class TonieESPFrontendView(HomeAssistantView):
             headers={
                 "Content-Type": "application/javascript",
                 "Cache-Control": (
-                    "public, max-age=31536000"
-                    if "v=" in request.query_string
-                    else "no-cache"
+                    "public, max-age=31536000" if "v=" in request.query_string else "no-cache"
                 ),
             },
         )
@@ -174,10 +173,7 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
 
     # 3. Register custom panel using panel_custom
     # Always ensure stale or previously registered panel is updated to the latest module_url
-    if (
-        frontend.DATA_PANELS in hass.data
-        and FRONTEND_URL_PATH in hass.data[frontend.DATA_PANELS]
-    ):
+    if frontend.DATA_PANELS in hass.data and FRONTEND_URL_PATH in hass.data[frontend.DATA_PANELS]:
         try:
             frontend.async_remove_panel(hass, FRONTEND_URL_PATH, warn_if_unknown=False)
         except Exception as err:

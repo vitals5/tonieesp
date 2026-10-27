@@ -1,4 +1,5 @@
 """Device manager and instance tracking for TonieESP."""
+
 from __future__ import annotations
 
 import contextlib
@@ -87,18 +88,12 @@ class TonieBoxInstance:
         self.resume_on_replace: bool = entry.options.get(
             CONF_RESUME_ON_REPLACE, DEFAULT_RESUME_ON_REPLACE
         )
-        self.max_volume: float = float(
-            entry.options.get(CONF_MAX_VOLUME, DEFAULT_MAX_VOLUME)
-        )
-        self.seek_step: int = int(
-            entry.options.get(CONF_SEEK_STEP, DEFAULT_SEEK_STEP)
-        )
+        self.max_volume: float = float(entry.options.get(CONF_MAX_VOLUME, DEFAULT_MAX_VOLUME))
+        self.seek_step: int = int(entry.options.get(CONF_SEEK_STEP, DEFAULT_SEEK_STEP))
         self.gestures_enabled: bool = entry.options.get(
             CONF_GESTURES_ENABLED, DEFAULT_GESTURES_ENABLED
         )
-        self.left_tap_action: str = entry.options.get(
-            CONF_LEFT_TAP_ACTION, DEFAULT_LEFT_TAP_ACTION
-        )
+        self.left_tap_action: str = entry.options.get(CONF_LEFT_TAP_ACTION, DEFAULT_LEFT_TAP_ACTION)
         self.right_tap_action: str = entry.options.get(
             CONF_RIGHT_TAP_ACTION, DEFAULT_RIGHT_TAP_ACTION
         )
@@ -410,7 +405,9 @@ class TonieBoxInstance:
                     target={"entity_id": self.tap_threshold_entity},
                     blocking=True,
                 )
-                _LOGGER.info("Set tap_threshold on %s to %s", self.tap_threshold_entity, tap_threshold)
+                _LOGGER.info(
+                    "Set tap_threshold on %s to %s", self.tap_threshold_entity, tap_threshold
+                )
             except Exception as err:
                 _LOGGER.warning("Could not set tap_threshold: %s", err)
 
@@ -423,7 +420,9 @@ class TonieBoxInstance:
                     target={"entity_id": self.tap_time_limit_entity},
                     blocking=True,
                 )
-                _LOGGER.info("Set tap_time_limit on %s to %s", self.tap_time_limit_entity, tap_time_limit)
+                _LOGGER.info(
+                    "Set tap_time_limit on %s to %s", self.tap_time_limit_entity, tap_time_limit
+                )
             except Exception as err:
                 _LOGGER.warning("Could not set tap_time_limit: %s", err)
 
@@ -481,9 +480,7 @@ class TonieBoxDeviceManager:
         """Get Toniebox instance by Config Entry ID."""
         return self._boxes.get(entry_id)
 
-    def get_box_by_esphome_device_id(
-        self, esphome_device_id: str
-    ) -> TonieBoxInstance | None:
+    def get_box_by_esphome_device_id(self, esphome_device_id: str) -> TonieBoxInstance | None:
         """Get Toniebox instance by ESPHome device registry ID."""
         for box in self._boxes.values():
             if box.esphome_device_id == esphome_device_id:

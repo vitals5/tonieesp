@@ -1,4 +1,5 @@
 """Music Assistant Adapter for TonieESP."""
+
 from __future__ import annotations
 
 import asyncio
@@ -77,12 +78,15 @@ class MusicAssistantAdapter:
                     await asyncio.sleep(0.15)
 
         # 2. Prefer music_assistant.play_media service if registered
-        has_ma_action = (
-            self.hass.services.has_service("music_assistant", "play_media")
-            or self.hass.services.has_service("mass", "play_media")
-        )
+        has_ma_action = self.hass.services.has_service(
+            "music_assistant", "play_media"
+        ) or self.hass.services.has_service("mass", "play_media")
 
-        domain = "music_assistant" if self.hass.services.has_service("music_assistant", "play_media") else "mass"
+        domain = (
+            "music_assistant"
+            if self.hass.services.has_service("music_assistant", "play_media")
+            else "mass"
+        )
 
         if has_ma_action:
             _LOGGER.debug(
@@ -126,6 +130,7 @@ class MusicAssistantAdapter:
 
         # 3. Handle resume position if requested
         if resume_position and resume_position > 2.0:
+
             async def _delayed_seek() -> None:
                 # Wait briefly for track to begin loading
                 await asyncio.sleep(1.0)
@@ -401,19 +406,24 @@ class MusicAssistantAdapter:
         if mass_client:
             try:
                 # Use MusicAssistantClient library search if available
-                res = await mass_client.music.search(query, media_types=media_types or ["playlist", "album", "track", "audiobook", "radio"])
+                res = await mass_client.music.search(
+                    query,
+                    media_types=media_types or ["playlist", "album", "track", "audiobook", "radio"],
+                )
                 # Extract results from mass models
                 for cat in ("playlists", "albums", "tracks", "audiobooks", "radios"):
                     items = getattr(res, cat, [])
                     for item in items:
-                        results.append({
-                            "provider": PROVIDER_MUSIC_ASSISTANT,
-                            "media_type": getattr(item, "media_type", cat.rstrip("s")),
-                            "media_id": getattr(item, "uri", getattr(item, "item_id", "")),
-                            "title": getattr(item, "name", str(item)),
-                            "artist": getattr(getattr(item, "artist", None), "name", ""),
-                            "image": getattr(getattr(item, "image", None), "path", ""),
-                        })
+                        results.append(
+                            {
+                                "provider": PROVIDER_MUSIC_ASSISTANT,
+                                "media_type": getattr(item, "media_type", cat.rstrip("s")),
+                                "media_id": getattr(item, "uri", getattr(item, "item_id", "")),
+                                "title": getattr(item, "name", str(item)),
+                                "artist": getattr(getattr(item, "artist", None), "name", ""),
+                                "image": getattr(getattr(item, "image", None), "path", ""),
+                            }
+                        )
                 return results
             except Exception as err:
                 _LOGGER.debug("Direct mass_client search failed: %s, falling back", err)
@@ -422,20 +432,21 @@ class MusicAssistantAdapter:
         try:
             if "media_source" in self.hass.config.components:
                 from homeassistant.components import media_source
-                browse = await media_source.async_browse_media(
-                    self.hass, "media-source://mass"
-                )
+
+                browse = await media_source.async_browse_media(self.hass, "media-source://mass")
                 if browse and browse.children:
                     for child in browse.children:
                         if query.lower() in child.title.lower():
-                            results.append({
-                                "provider": PROVIDER_MUSIC_ASSISTANT,
-                                "media_type": child.media_class or "playlist",
-                                "media_id": child.media_content_id,
-                                "title": child.title,
-                                "artist": "",
-                                "image": child.thumbnail or "",
-                            })
+                            results.append(
+                                {
+                                    "provider": PROVIDER_MUSIC_ASSISTANT,
+                                    "media_type": child.media_class or "playlist",
+                                    "media_id": child.media_content_id,
+                                    "title": child.title,
+                                    "artist": "",
+                                    "image": child.thumbnail or "",
+                                }
+                            )
         except Exception as err:
             _LOGGER.debug("Media source browse fallback encountered: %s", err)
 

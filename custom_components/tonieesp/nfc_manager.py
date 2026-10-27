@@ -1,4 +1,5 @@
 """Central NFC Tag Manager for TonieESP."""
+
 from __future__ import annotations
 
 import asyncio
@@ -203,9 +204,7 @@ class NFCManager:
         """Export tags as a list for backup or JSON download."""
         return list(self._tags.values())
 
-    def get_effective_media_for_box(
-        self, raw_uid: str, device_id: str
-    ) -> dict[str, Any] | None:
+    def get_effective_media_for_box(self, raw_uid: str, device_id: str) -> dict[str, Any] | None:
         """Retrieve effective media settings for a tag on a specific Toniebox.
 
         Merges device-specific overrides with the global tag settings.
@@ -267,7 +266,9 @@ class NFCManager:
             self.stop_learning_mode()
 
         self._learning_timeout_task = self.hass.async_create_task(_timeout_handler())
-        _LOGGER.info("Scan learning mode started for device %s (timeout: %ds)", device_id, timeout_seconds)
+        _LOGGER.info(
+            "Scan learning mode started for device %s (timeout: %ds)", device_id, timeout_seconds
+        )
 
     def stop_learning_mode(self) -> None:
         """Deactivate tag scan learning mode."""
@@ -283,7 +284,9 @@ class NFCManager:
         """Check if learning mode is currently active."""
         if not self._learning_active:
             return False
-        return not (self._learning_device_id and device_id and self._learning_device_id != device_id)
+        return not (
+            self._learning_device_id and device_id and self._learning_device_id != device_id
+        )
 
     def process_learned_tag(self, raw_uid: str, device_id: str) -> bool:
         """Process a scanned tag when learning mode is active.

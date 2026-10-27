@@ -1,4 +1,5 @@
 """WebSocket API for TonieESP side panel."""
+
 from __future__ import annotations
 
 import logging
@@ -120,9 +121,7 @@ async def ws_handle_tags_list(
 ) -> None:
     """List NFC tags."""
     coord = get_coordinator(hass)
-    tags = coord.nfc_manager.list_tags(
-        search=msg.get("search"), media_type=msg.get("media_type")
-    )
+    tags = coord.nfc_manager.list_tags(search=msg.get("search"), media_type=msg.get("media_type"))
     connection.send_result(msg["id"], tags)
 
 
@@ -286,9 +285,7 @@ async def ws_handle_playback_control(
 
     active_player = box.get_active_player_entity() or box.ma_player_entity or box.speaker_entity
     fallback_player = (
-        box.speaker_entity
-        if active_player == box.ma_player_entity
-        else box.ma_player_entity
+        box.speaker_entity if active_player == box.ma_player_entity else box.ma_player_entity
     )
 
     if not active_player:
@@ -322,7 +319,10 @@ async def ws_handle_playback_control(
         elif action == "volume":
             vol_level = float(data.get("volume", 0.5))
             await ma.async_set_volume(
-                active_player, vol_level, max_volume=box.max_volume, fallback_entity_id=fallback_player
+                active_player,
+                vol_level,
+                max_volume=box.max_volume,
+                fallback_entity_id=fallback_player,
             )
         elif action == "play_tag":
             uid = data.get("uid")

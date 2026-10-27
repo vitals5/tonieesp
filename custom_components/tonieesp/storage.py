@@ -1,4 +1,5 @@
 """Persistent storage handling for TonieESP."""
+
 from __future__ import annotations
 
 import logging
@@ -23,9 +24,7 @@ class TonieESPStorage:
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the storage manager."""
         self.hass = hass
-        self._tag_store: Store[dict[str, Any]] = Store(
-            hass, STORAGE_VERSION_TAGS, STORAGE_KEY_TAGS
-        )
+        self._tag_store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION_TAGS, STORAGE_KEY_TAGS)
         self._session_store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION_SESSIONS, STORAGE_KEY_SESSIONS
         )
@@ -68,13 +67,19 @@ class TonieESPStorage:
 
     def _migrate_tags(self, data: dict[str, Any], current_version: int) -> dict[str, Any]:
         """Migrate tag storage data between schema versions."""
-        _LOGGER.info("Migrating tag storage from version %s to %s", current_version, STORAGE_VERSION_TAGS)
+        _LOGGER.info(
+            "Migrating tag storage from version %s to %s", current_version, STORAGE_VERSION_TAGS
+        )
         # Migration logic placeholder when schema version bumps in future
         data["schema_version"] = STORAGE_VERSION_TAGS
         return data
 
     def _migrate_sessions(self, data: dict[str, Any], current_version: int) -> dict[str, Any]:
         """Migrate session storage data between schema versions."""
-        _LOGGER.info("Migrating session storage from version %s to %s", current_version, STORAGE_VERSION_SESSIONS)
+        _LOGGER.info(
+            "Migrating session storage from version %s to %s",
+            current_version,
+            STORAGE_VERSION_SESSIONS,
+        )
         data["schema_version"] = STORAGE_VERSION_SESSIONS
         return data

@@ -3,6 +3,7 @@
 Resolves ESPHome and Music Assistant entities via Device and Entity Registry,
 adapting automatically when entities are renamed.
 """
+
 from __future__ import annotations
 
 import logging
@@ -196,7 +197,10 @@ class TonieBoxEntityResolver:
             # Battery percentage
             if domain == "sensor" and not found_battery:
                 if entry.original_device_class == "battery" or (
-                    "battery" in orig and "voltage" not in orig and "level" in orig or orig == "battery"
+                    "battery" in orig
+                    and "voltage" not in orig
+                    and "level" in orig
+                    or orig == "battery"
                 ):
                     found_battery = entry.entity_id
 
@@ -237,7 +241,11 @@ class TonieBoxEntityResolver:
 
             # Tap time limit number
             if domain == "number" and not found_tap_time_limit:
-                if "tap_time_limit" in orig or "tap time limit" in orig or "tap_time_limit" in ent_id:
+                if (
+                    "tap_time_limit" in orig
+                    or "tap time limit" in orig
+                    or "tap_time_limit" in ent_id
+                ):
                     found_tap_time_limit = entry.entity_id
 
             # Last wake cause
@@ -270,9 +278,7 @@ class TonieBoxEntityResolver:
             found_nfc,
         )
 
-    def _resolve_ma_player(
-        self, device_name: str, esphome_speaker: str | None
-    ) -> str | None:
+    def _resolve_ma_player(self, device_name: str, esphome_speaker: str | None) -> str | None:
         """Identify corresponding Music Assistant media player."""
         # 1. If explicitly configured by user, verify or use it
         if self.configured_ma_player:
@@ -286,7 +292,12 @@ class TonieBoxEntityResolver:
             reg_entry = ent_reg.async_get(entity_id)
 
             is_ma = False
-            if reg_entry and reg_entry.platform in ("mass", "music_assistant") or "mass" in entity_id or "music_assistant" in entity_id:
+            if (
+                reg_entry
+                and reg_entry.platform in ("mass", "music_assistant")
+                or "mass" in entity_id
+                or "music_assistant" in entity_id
+            ):
                 is_ma = True
 
             if is_ma:

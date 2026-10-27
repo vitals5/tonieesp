@@ -1,4 +1,5 @@
 """Event handling and gesture processing for TonieESP."""
+
 from __future__ import annotations
 
 import logging
@@ -56,7 +57,9 @@ class TonieESPEventHandler:
         last = self._last_gesture_time.get(key, 0.0)
 
         # Check if box is currently playing
-        active_player = box.get_active_player_entity() if hasattr(box, "get_active_player_entity") else None
+        active_player = (
+            box.get_active_player_entity() if hasattr(box, "get_active_player_entity") else None
+        )
         st = self.hass.states.get(active_player) if active_player else None
         is_playing = st is not None and st.state == "playing"
 
@@ -148,7 +151,12 @@ class TonieESPEventHandler:
 
         is_left = side == "pos"
         action = box.left_tap_action if is_left else box.right_tap_action
-        _LOGGER.debug("Tap on box '%s' (%s side) -> action: %s", box.name, "left" if is_left else "right", action)
+        _LOGGER.debug(
+            "Tap on box '%s' (%s side) -> action: %s",
+            box.name,
+            "left" if is_left else "right",
+            action,
+        )
         await self._execute_gesture_action(box, action)
 
     async def _handle_esphome_tilt_event(self, event: Event) -> None:
@@ -170,14 +178,25 @@ class TonieESPEventHandler:
 
         is_left = side == "pos"
         action = box.left_tilt_action if is_left else box.right_tilt_action
-        _LOGGER.debug("Tilt on box '%s' (%s side) -> action: %s", box.name, "left" if is_left else "right", action)
+        _LOGGER.debug(
+            "Tilt on box '%s' (%s side) -> action: %s",
+            box.name,
+            "left" if is_left else "right",
+            action,
+        )
         await self._execute_gesture_action(box, action)
 
     async def _execute_gesture_action(self, box: Any, action: str) -> None:
         """Execute the configured gesture action on the active Toniebox player."""
-        active_player = box.get_active_player_entity() if hasattr(box, "get_active_player_entity") else box.ma_player_entity
+        active_player = (
+            box.get_active_player_entity()
+            if hasattr(box, "get_active_player_entity")
+            else box.ma_player_entity
+        )
         active_player = active_player or box.ma_player_entity or box.speaker_entity
-        fallback_player = box.speaker_entity if active_player == box.ma_player_entity else box.ma_player_entity
+        fallback_player = (
+            box.speaker_entity if active_player == box.ma_player_entity else box.ma_player_entity
+        )
 
         if not active_player or action == ACTION_NONE:
             return
@@ -191,23 +210,33 @@ class TonieESPEventHandler:
                 await ma.async_next(active_player, fallback_entity_id=fallback_player)
             elif action == ACTION_SEEK_BACKWARD:
                 step = float(box.seek_step)
-                await ma.async_seek_relative(active_player, -step, fallback_entity_id=fallback_player)
+                await ma.async_seek_relative(
+                    active_player, -step, fallback_entity_id=fallback_player
+                )
             elif action == ACTION_SEEK_FORWARD:
                 step = float(box.seek_step)
-                await ma.async_seek_relative(active_player, step, fallback_entity_id=fallback_player)
+                await ma.async_seek_relative(
+                    active_player, step, fallback_entity_id=fallback_player
+                )
             elif action == ACTION_PLAY_PAUSE:
                 await ma.async_play_pause(active_player, fallback_entity_id=fallback_player)
             elif action == ACTION_VOLUME_UP:
                 state = self.hass.states.get(active_player)
                 cur = float(state.attributes.get("volume_level", 0.5)) if state else 0.5
                 await ma.async_set_volume(
-                    active_player, min(1.0, cur + 0.05), max_volume=box.max_volume, fallback_entity_id=fallback_player
+                    active_player,
+                    min(1.0, cur + 0.05),
+                    max_volume=box.max_volume,
+                    fallback_entity_id=fallback_player,
                 )
             elif action == ACTION_VOLUME_DOWN:
                 state = self.hass.states.get(active_player)
                 cur = float(state.attributes.get("volume_level", 0.5)) if state else 0.5
                 await ma.async_set_volume(
-                    active_player, max(0.0, cur - 0.05), max_volume=box.max_volume, fallback_entity_id=fallback_player
+                    active_player,
+                    max(0.0, cur - 0.05),
+                    max_volume=box.max_volume,
+                    fallback_entity_id=fallback_player,
                 )
             else:
                 _LOGGER.warning("Unknown gesture action '%s'", action)
