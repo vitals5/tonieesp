@@ -87,7 +87,16 @@ async def ws_handle_boxes_update(
         connection.send_error(msg["id"], "not_found", f"Box {msg['box_id']} not found")
         return
 
-    settings = msg["settings"]
+    settings = dict(msg["settings"])
+
+    # If hardware tuning settings are provided, update ESPHome number entities
+    tap_threshold = settings.pop("tap_threshold", None)
+    tap_time_limit = settings.pop("tap_time_limit", None)
+    if tap_threshold is not None or tap_time_limit is not None:
+        await box.async_set_hardware_tuning(
+            tap_threshold=tap_threshold, tap_time_limit=tap_time_limit
+        )
+
     box.update_options(settings)
 
     # Persist in config entry options
@@ -275,8 +284,14 @@ async def ws_handle_playback_control(
         connection.send_error(msg["id"], "not_found", f"Box {msg['box_id']} not found")
         return
 
-    player = box.ma_player_entity
-    if not player:
+    active_player = box.get_active_player_entity() or box.ma_player_entity or box.speaker_entity
+    fallback_player = (
+        box.speaker_entity
+        if active_player == box.ma_player_entity
+        else box.ma_player_entity
+    )
+
+    if not active_player:
         connection.send_error(msg["id"], "no_player", "No media player resolved for this box")
         return
 
@@ -284,31 +299,42 @@ async def ws_handle_playback_control(
     data = msg.get("data") or {}
     ma = coord.ma_adapter
 
-    if action == "play":
-        await ma.async_resume(player)
-    elif action == "pause":
-        await ma.async_pause(player)
-    elif action == "stop":
-        await ma.async_stop(player)
-    elif action == "next":
-        await ma.async_next(player)
-    elif action == "previous":
-        await ma.async_previous(player)
-    elif action == "seek":
-        pos = float(data.get("position", 0.0))
-        await ma.async_seek(player, pos)
-    elif action == "volume":
-        vol_level = float(data.get("volume", 0.5))
-        await ma.async_set_volume(player, vol_level, max_volume=box.max_volume)
-    elif action == "play_tag":
-        uid = data.get("uid")
-        if uid:
-            await box.async_handle_tag_scanned(uid)
-    else:
-        connection.send_error(msg["id"], "invalid_action", f"Unknown action {action}")
-        return
-
-    connection.send_result(msg["id"], {"status": "ok"})
+    try:
+        if action in ("play_pause", "toggle"):
+            await ma.async_play_pause(active_player, fallback_entity_id=fallback_player)
+        elif action == "play":
+            st = hass.states.get(active_player)
+            if st and st.state in ("idle", "off") and box.current_tag:
+                await box.async_handle_tag_scanned(box.current_tag)
+            else:
+                await ma.async_resume(active_player, fallback_entity_id=fallback_player)
+        elif action == "pause":
+            await ma.async_pause(active_player, fallback_entity_id=fallback_player)
+        elif action == "stop":
+            await ma.async_stop(active_player, fallback_entity_id=fallback_player)
+        elif action == "next":
+            await ma.async_next(active_player, fallback_entity_id=fallback_player)
+        elif action == "previous":
+            await ma.async_previous(active_player, fallback_entity_id=fallback_player)
+        elif action == "seek":
+            pos = float(data.get("position", 0.0))
+            await ma.async_seek(active_player, pos, fallback_entity_id=fallback_player)
+        elif action == "volume":
+            vol_level = float(data.get("volume", 0.5))
+            await ma.async_set_volume(
+                active_player, vol_level, max_volume=box.max_volume, fallback_entity_id=fallback_player
+            )
+        elif action == "play_tag":
+            uid = data.get("uid")
+            if uid:
+                await box.async_handle_tag_scanned(uid)
+        else:
+            connection.send_error(msg["id"], "invalid_action", f"Unknown action {action}")
+            return
+        connection.send_result(msg["id"], {"status": "ok"})
+    except Exception as err:
+        _LOGGER.error("Playback control error for action '%s': %s", action, err)
+        connection.send_error(msg["id"], "playback_error", str(err))
 
 
 @websocket_api.websocket_command({vol.Required("type"): WS_TYPE_EVENTS_SUBSCRIBE})

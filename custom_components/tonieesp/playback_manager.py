@@ -17,6 +17,11 @@ DEBOUNCE_SCAN_INTERVAL = 2.0  # seconds to ignore duplicate scans for same tag
 SHORT_TERM_RESUME_MAX_AGE = 7200  # 2 hours for short-term removal pause
 
 
+def make_session_key(box_id: str, tag_uid: str) -> str:
+    """Generate unique session key scoped per Toniebox and tag."""
+    return f"{box_id}_{tag_uid}"
+
+
 @dataclass
 class PlaybackSession:
     """Represents an active or persisted playback session for a tag."""
@@ -81,18 +86,20 @@ class PlaybackManager:
         """Load persistent sessions from storage."""
         data = await self.storage.async_load_sessions()
         sessions = data.get("sessions", {})
-        for uid, sess_dict in sessions.items():
+        for key, sess_dict in sessions.items():
             try:
-                self._persistent_sessions[uid] = PlaybackSession.from_dict(sess_dict)
+                sess = PlaybackSession.from_dict(sess_dict)
+                effective_key = key if "_" in key else (make_session_key(sess.box_id, sess.tag_uid) if sess.box_id else key)
+                self._persistent_sessions[effective_key] = sess
             except Exception as err:
-                _LOGGER.warning("Could not load session for tag %s: %s", uid, err)
+                _LOGGER.warning("Could not load session for key %s: %s", key, err)
         _LOGGER.debug("Loaded %d persistent playback sessions", len(self._persistent_sessions))
 
     async def async_save(self) -> None:
         """Save persistent sessions to storage."""
         data = {
             "sessions": {
-                uid: sess.to_dict() for uid, sess in self._persistent_sessions.items()
+                key: sess.to_dict() for key, sess in self._persistent_sessions.items()
             }
         }
         await self.storage.async_save_sessions(data)
@@ -155,14 +162,16 @@ class PlaybackManager:
                 active.was_paused_by_removal = False
                 active.updated_at = now
 
-        # 2. Check central persistent progress for audiobooks / resume-enabled tags
+        # 2. Check persistent progress for this tag on THIS SPECIFIC BOX (independent child/box progress)
         if resume_position is None and resume_enabled:
-            saved_sess = self._persistent_sessions.get(tag_uid)
+            box_tag_key = make_session_key(box_id, tag_uid)
+            saved_sess = self._persistent_sessions.get(box_tag_key)
             if saved_sess and not saved_sess.completed:
                 if saved_sess.media_id == media_id and saved_sess.position > 5.0:
                     _LOGGER.info(
-                        "Found persistent progress for tag %s: resuming at %.1fs",
+                        "Found persistent progress for tag %s on box %s: resuming at %.1fs",
                         tag_uid,
+                        box_id,
                         saved_sess.position,
                     )
                     resume_position = saved_sess.position
@@ -222,8 +231,9 @@ class PlaybackManager:
             active.completed = True
             active.position = 0.0
 
-        # Persist session progress globally for this tag
-        self._persistent_sessions[active.tag_uid] = PlaybackSession(
+        # Persist session progress specifically for this box and tag (isolated per child/box)
+        box_tag_key = make_session_key(box_id, active.tag_uid)
+        self._persistent_sessions[box_tag_key] = PlaybackSession(
             box_id=box_id,
             tag_uid=active.tag_uid,
             media_source=active.media_source,
@@ -246,16 +256,36 @@ class PlaybackManager:
             )
             await self.ma_adapter.async_pause(player_entity_id)
 
-    def get_session_for_tag(self, tag_uid: str) -> PlaybackSession | None:
-        """Get saved playback session for a tag."""
-        return self._persistent_sessions.get(tag_uid)
+    def get_session_for_box_and_tag(
+        self, box_id: str, tag_uid: str
+    ) -> PlaybackSession | None:
+        """Get saved playback session for a specific box and tag."""
+        return self._persistent_sessions.get(make_session_key(box_id, tag_uid))
+
+    def get_session_for_tag(
+        self, tag_uid: str, box_id: str | None = None
+    ) -> PlaybackSession | None:
+        """Get saved playback session for a tag, optionally for a specific box."""
+        if box_id:
+            return self.get_session_for_box_and_tag(box_id, tag_uid)
+        for sess in self._persistent_sessions.values():
+            if sess.tag_uid == tag_uid:
+                return sess
+        return None
 
     def get_active_session_for_box(self, box_id: str) -> PlaybackSession | None:
         """Get active session for a specific box."""
         return self._active_sessions.get(box_id)
 
-    async def async_clear_session(self, tag_uid: str) -> None:
-        """Reset saved session for a tag."""
-        if tag_uid in self._persistent_sessions:
-            del self._persistent_sessions[tag_uid]
-            await self.async_save()
+    async def async_clear_session(
+        self, tag_uid: str, box_id: str | None = None
+    ) -> None:
+        """Reset saved session for a tag on a specific box or all boxes."""
+        if box_id:
+            key = make_session_key(box_id, tag_uid)
+            self._persistent_sessions.pop(key, None)
+        else:
+            to_remove = [k for k, s in self._persistent_sessions.items() if s.tag_uid == tag_uid]
+            for k in to_remove:
+                self._persistent_sessions.pop(k, None)
+        await self.async_save()

@@ -78,5 +78,5 @@ async def test_setup_and_unload_lifecycle(hass):
         assert unload_result is True
         assert mock_rem_box.called
         assert mock_coord_unload.called
-        mock_rem_panel.assert_called_once_with(hass, FRONTEND_URL_PATH)
+        mock_rem_panel.assert_called_with(hass, FRONTEND_URL_PATH, warn_if_unknown=False)
         assert DOMAIN not in hass.data

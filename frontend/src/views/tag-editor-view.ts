@@ -9,6 +9,7 @@ export class TonieESPTagEditorView extends LitElement {
   @property({ type: Array }) boxes: TonieBox[] = [];
   @property({ type: String }) initialUid = "";
   @property({ type: String }) lang = "de";
+  @property({ type: Object }) api: any;
 
   @state() private _uid = "";
   @state() private _name = "";
@@ -26,6 +27,13 @@ export class TonieESPTagEditorView extends LitElement {
   @state() private _overrides: Record<string, DeviceOverride> = {};
   @state() private _activeTab: "global" | "overrides" = "global";
   @state() private _selectedOverrideBoxId = "";
+
+  // In-place Media Library Search Modal state
+  @state() private _showMediaModal = false;
+  @state() private _modalSearchQuery = "";
+  @state() private _modalSearching = false;
+  @state() private _modalResults: MediaSearchResult[] = [];
+  @state() private _modalSearched = false;
 
   static styles = css`
     :host {
@@ -241,6 +249,162 @@ export class TonieESPTagEditorView extends LitElement {
       background: var(--secondary-background-color, #f0f0f0);
       color: var(--primary-text-color, #222);
     }
+
+    /* In-place Media Search Modal */
+    .media-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .media-modal-content {
+      background: var(--card-background-color, #ffffff);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 680px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+    }
+
+    .media-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--divider-color, #eee);
+    }
+
+    .media-modal-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .btn-close-modal {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--secondary-text-color, #666);
+      line-height: 1;
+      padding: 4px;
+    }
+
+    .media-modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .modal-search-input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color, #ccc);
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color, #111);
+      font-size: 14px;
+    }
+
+    .modal-results-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .media-result-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color, #eee);
+      background: var(--card-background-color, #fff);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .media-result-item:hover {
+      background: var(--secondary-background-color, #f5f5f5);
+      border-color: var(--primary-color, #03a9f4);
+    }
+
+    .media-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: var(--secondary-background-color, #eee);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .media-result-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .media-result-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary-text-color, #111);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .media-result-sub {
+      font-size: 12px;
+      color: var(--secondary-text-color, #666);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .media-result-badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(3, 169, 244, 0.12);
+      color: #0288d1;
+      text-transform: capitalize;
+    }
+
+    .btn-take-media {
+      background: var(--primary-color, #03a9f4);
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
   `;
 
   connectedCallback() {
@@ -269,7 +433,39 @@ export class TonieESPTagEditorView extends LitElement {
     }
   }
 
-  public setMediaSelection(item: MediaSearchResult) {
+  private _openMediaSearchModal() {
+    this._showMediaModal = true;
+    if (!this._modalSearchQuery) {
+      this._modalSearchQuery = this._mediaTitle || (this._name.startsWith("Tonie ") ? "" : this._name);
+    }
+    if (this._modalSearchQuery && this._modalResults.length === 0) {
+      this._executeModalSearch();
+    }
+  }
+
+  private _closeMediaSearchModal() {
+    this._showMediaModal = false;
+  }
+
+  private async _executeModalSearch(e?: Event) {
+    if (e) e.preventDefault();
+    if (!this._modalSearchQuery.trim() || !this.api) return;
+
+    this._modalSearching = true;
+    this._modalSearched = true;
+    try {
+      const types = this._mediaType ? [this._mediaType] : undefined;
+      const res = await this.api.searchMedia(this._modalSearchQuery.trim(), types);
+      this._modalResults = res || [];
+    } catch (err) {
+      console.error("Error searching media:", err);
+      this._modalResults = [];
+    } finally {
+      this._modalSearching = false;
+    }
+  }
+
+  private _selectMediaItem(item: MediaSearchResult) {
     this._mediaId = item.media_id;
     this._mediaType = item.media_type;
     this._mediaTitle = item.title;
@@ -280,6 +476,11 @@ export class TonieESPTagEditorView extends LitElement {
     if (!this._name || this._name.startsWith("Tonie ")) {
       this._name = item.title;
     }
+    this._showMediaModal = false;
+  }
+
+  public setMediaSelection(item: MediaSearchResult) {
+    this._selectMediaItem(item);
   }
 
   private _onSave() {
@@ -477,13 +678,8 @@ export class TonieESPTagEditorView extends LitElement {
                     />
                     <button
                       class="btn-search"
-                      @click=${() =>
-                        this.dispatchEvent(
-                          new CustomEvent("open-media-browser", {
-                            bubbles: true,
-                            composed: true,
-                          })
-                        )}
+                      type="button"
+                      @click=${this._openMediaSearchModal}
                     >
                       ${localize("editor.browse_ma", this.lang)}
                     </button>
@@ -610,6 +806,75 @@ export class TonieESPTagEditorView extends LitElement {
           </button>
         </div>
       </div>
+
+      <!-- In-place Media Search Modal -->
+      ${this._showMediaModal
+        ? html`
+            <div class="media-modal-backdrop" @click=${this._closeMediaSearchModal}>
+              <div class="media-modal-content" @click=${(e: Event) => e.stopPropagation()}>
+                <div class="media-modal-header">
+                  <h3 class="media-modal-title">🎵 ${localize("browser.title", this.lang)}</h3>
+                  <button class="btn-close-modal" @click=${this._closeMediaSearchModal} title="Schließen">✕</button>
+                </div>
+                <div class="media-modal-body">
+                  <form class="modal-search-row" @submit=${this._executeModalSearch}>
+                    <input
+                      class="modal-search-input"
+                      type="search"
+                      placeholder=${localize("browser.search_placeholder", this.lang)}
+                      .value=${this._modalSearchQuery}
+                      @input=${(e: Event) =>
+                        (this._modalSearchQuery = (e.target as HTMLInputElement).value)}
+                    />
+                    <button
+                      class="btn btn-save"
+                      type="submit"
+                      ?disabled=${this._modalSearching || !this._modalSearchQuery.trim()}
+                    >
+                      ${this._modalSearching
+                        ? localize("browser.searching", this.lang)
+                        : localize("browser.search_btn", this.lang)}
+                    </button>
+                  </form>
+
+                  <div class="modal-results-list">
+                    ${this._modalResults.map(
+                      (item) => html`
+                        <div class="media-result-item" @click=${() => this._selectMediaItem(item)}>
+                          ${item.image
+                            ? html`<img class="media-thumb" src="${item.image}" alt="Cover" />`
+                            : html`<div class="media-thumb">🎵</div>`}
+                          <div class="media-result-info">
+                            <div class="media-result-title">${item.title}</div>
+                            <div class="media-result-sub">
+                              <span class="media-result-badge">${item.media_type}</span>
+                              ${item.artist ? ` • ${item.artist}` : ""}
+                            </div>
+                          </div>
+                          <button
+                            class="btn-take-media"
+                            type="button"
+                            @click=${(e: Event) => {
+                              e.stopPropagation();
+                              this._selectMediaItem(item);
+                            }}
+                          >
+                            ${localize("browser.select_btn", this.lang)}
+                          </button>
+                        </div>
+                      `
+                    )}
+                    ${this._modalSearched && !this._modalSearching && this._modalResults.length === 0
+                      ? html`<div style="text-align: center; color: #888; padding: 30px;">
+                          ${localize("browser.no_results", this.lang)}
+                        </div>`
+                      : ""}
+                  </div>
+                </div>
+              </div>
+            </div>
+          `
+        : ""}
     `;
   }
 }

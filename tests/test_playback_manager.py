@@ -85,8 +85,8 @@ async def test_short_term_resume_on_same_box(hass, mock_storage, mock_ma_adapter
 
 
 @pytest.mark.asyncio
-async def test_central_audiobook_progress_across_boxes(hass, mock_storage, mock_ma_adapter):
-    """Test central playback progress allows continuing an audiobook on another box."""
+async def test_box_isolated_playback_progress(hass, mock_storage, mock_ma_adapter):
+    """Test playback progress is strictly isolated per box."""
     pm = PlaybackManager(hass, mock_storage, mock_ma_adapter)
     await pm.async_load()
 
@@ -106,16 +106,30 @@ async def test_central_audiobook_progress_across_boxes(hass, mock_storage, mock_
     }
     await pm.async_handle_tag_removed("box_kinderzimmer", "media_player.kz", pause_on_removal=True)
 
-    # Verify session saved in persistent store
+    # Verify session saved in persistent store for box_kinderzimmer
     assert mock_storage.async_save_sessions.called
-    saved = pm.get_session_for_tag("TAG_BOOK")
-    assert saved is not None
-    assert saved.position == 320.0
+    saved_kz = pm.get_session_for_box_and_tag("box_kinderzimmer", "TAG_BOOK")
+    assert saved_kz is not None
+    assert saved_kz.position == 320.0
 
-    # 3. Take figure to Box 2 (Wohnzimmer)
+    # 3. Take figure to Box 2 (Wohnzimmer) - Belongs to second child, should start fresh
     await pm.async_handle_tag_placed(
         "box_wohnzimmer", "media_player.wz", "TAG_BOOK", media, settings
     )
+    # Box 2 starts fresh, resume_position is None
+    assert mock_ma_adapter.async_play_media.call_args[1].get("resume_position") is None
 
-    # Box 2 resumes at 320.0s!
+    # 4. Lift from Box 2 after playing to 45s
+    mock_ma_adapter.get_player_state.return_value = {
+        "state": "playing",
+        "position": 45.0,
+        "duration": 1800.0,
+    }
+    await pm.async_handle_tag_removed("box_wohnzimmer", "media_player.wz", pause_on_removal=True)
+
+    # 5. Place figure back on Box 1 - Continues at its own 320s!
+    pm._last_scan["box_kinderzimmer"] = ("TAG_BOOK", time.time() - 3.0)
+    await pm.async_handle_tag_placed(
+        "box_kinderzimmer", "media_player.kz", "TAG_BOOK", media, settings
+    )
     assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] == 320.0

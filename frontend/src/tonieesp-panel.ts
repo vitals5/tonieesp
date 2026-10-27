@@ -1,14 +1,13 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { TonieESPWebSocketAPI } from "./api/websocket";
-import { EventLogItem, MediaSearchResult, NFCTag, TonieBox } from "./types";
+import { EventLogItem, NFCTag, TonieBox } from "./types";
 import { localize } from "./localize";
 
 // Import Views
 import "./views/dashboard-view";
 import "./views/tag-library-view";
 import "./views/tag-editor-view";
-import "./views/media-browser-view";
 import "./views/box-detail-view";
 import "./views/settings-view";
 import "./views/logs-view";
@@ -24,7 +23,6 @@ export class TonieESPPanel extends LitElement {
   @state() private _activeView:
     | "dashboard"
     | "tags"
-    | "browser"
     | "settings"
     | "logs"
     | "editor"
@@ -135,36 +133,6 @@ export class TonieESPPanel extends LitElement {
     .nav-btn.active {
       background: var(--primary-color, #03a9f4);
       color: #fff;
-    }
-
-    .lang-switch {
-      display: inline-flex;
-      background: var(--secondary-background-color, #f0f0f0);
-      border-radius: 6px;
-      padding: 2px;
-      gap: 2px;
-    }
-
-    .lang-btn {
-      background: transparent;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--secondary-text-color, #666);
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-
-    .lang-btn:hover {
-      color: var(--primary-text-color, #111);
-    }
-
-    .lang-btn.active {
-      background: var(--card-background-color, #ffffff);
-      color: var(--primary-color, #03a9f4);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 
     .content-area {
@@ -286,35 +254,17 @@ export class TonieESPPanel extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    try {
-      const stored = localStorage.getItem("tonieesp_lang");
-      if (stored === "en" || stored === "de") {
-        this._lang = stored;
-      } else if (this.hass?.locale?.language || this.hass?.language) {
-        const haLang = (this.hass.locale?.language || this.hass.language || "").toLowerCase();
-        this._lang = haLang.startsWith("en") ? "en" : "de";
-      }
-    } catch {
-      this._lang = "de";
-    }
+    this._updateLanguageFromHass();
   }
 
-  private _setLanguage(lang: "de" | "en") {
-    this._lang = lang;
-    try {
-      localStorage.setItem("tonieesp_lang", lang);
-    } catch {
-      // Ignore localStorage failure in iframe / private mode
-    }
-    this.requestUpdate();
+  private _updateLanguageFromHass() {
+    const haLang = (this.hass?.locale?.language || this.hass?.language || "de").toLowerCase();
+    this._lang = haLang.startsWith("de") ? "de" : "en";
   }
 
   updated(changedProperties: Map<string, any>) {
     if (changedProperties.has("hass") && this.hass) {
-      if (!localStorage.getItem("tonieesp_lang")) {
-        const haLang = (this.hass.locale?.language || this.hass.language || "").toLowerCase();
-        this._lang = haLang.startsWith("en") ? "en" : "de";
-      }
+      this._updateLanguageFromHass();
       if (!this._api) {
         this._api = new TonieESPWebSocketAPI(this.hass);
         this._initData();
@@ -515,15 +465,6 @@ export class TonieESPPanel extends LitElement {
     this._activeView = "editor";
   }
 
-  private _handleMediaSelectedFromBrowser(e: CustomEvent) {
-    const mediaItem: MediaSearchResult = e.detail;
-    this._activeView = "editor";
-    const editor = this.shadowRoot?.querySelector("tonieesp-tag-editor-view") as any;
-    if (editor && editor.setMediaSelection) {
-      editor.setMediaSelection(mediaItem);
-    }
-  }
-
   render() {
     return html`
       <!-- Top Navigation Bar -->
@@ -550,12 +491,6 @@ export class TonieESPPanel extends LitElement {
             🧸 ${localize("nav.tags", this._lang)} (${this._tags.length})
           </button>
           <button
-            class="nav-btn ${this._activeView === "browser" ? "active" : ""}"
-            @click=${() => (this._activeView = "browser")}
-          >
-            🎵 ${localize("nav.browser", this._lang)}
-          </button>
-          <button
             class="nav-btn ${this._activeView === "settings" ? "active" : ""}"
             @click=${() => (this._activeView = "settings")}
           >
@@ -568,23 +503,6 @@ export class TonieESPPanel extends LitElement {
             📋 ${localize("nav.logs", this._lang)}
           </button>
         </nav>
-
-        <div class="lang-switch">
-          <button
-            class="lang-btn ${this._lang === "de" ? "active" : ""}"
-            @click=${() => this._setLanguage("de")}
-            title="Deutsch"
-          >
-            DE
-          </button>
-          <button
-            class="lang-btn ${this._lang === "en" ? "active" : ""}"
-            @click=${() => this._setLanguage("en")}
-            title="English"
-          >
-            EN
-          </button>
-        </div>
       </header>
 
       <!-- Main View Area -->
@@ -601,8 +519,6 @@ export class TonieESPPanel extends LitElement {
         @delete-tag=${this._handleDeleteTag}
         @save-tag-record=${this._handleSaveTagRecord}
         @cancel-tag-edit=${() => (this._activeView = "tags")}
-        @open-media-browser=${() => (this._activeView = "browser")}
-        @media-selected=${this._handleMediaSelectedFromBrowser}
         @start-scan-learning=${this._handleStartScanLearning}
         @tags-imported=${() => this._api?.getTags().then((t) => (this._tags = t))}
         @clear-logs=${() => (this._logs = [])}
@@ -627,6 +543,7 @@ export class TonieESPPanel extends LitElement {
               .boxes=${this._boxes}
               .initialUid=${this._initialUid}
               .lang=${this._lang}
+              .api=${this._api}
             ></tonieesp-tag-editor-view>`
           : ""}
         ${this._activeView === "detail" && this._selectedBox
@@ -634,12 +551,6 @@ export class TonieESPPanel extends LitElement {
               .box=${this._selectedBox}
               .lang=${this._lang}
             ></tonieesp-box-detail-view>`
-          : ""}
-        ${this._activeView === "browser"
-          ? html`<tonieesp-media-browser-view
-              .api=${this._api}
-              .lang=${this._lang}
-            ></tonieesp-media-browser-view>`
           : ""}
         ${this._activeView === "settings"
           ? html`<tonieesp-settings-view

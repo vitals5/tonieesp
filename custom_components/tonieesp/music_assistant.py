@@ -19,6 +19,7 @@ from homeassistant.components.media_player import (
     SERVICE_MEDIA_NEXT_TRACK,
     SERVICE_MEDIA_PAUSE,
     SERVICE_MEDIA_PLAY,
+    SERVICE_MEDIA_PLAY_PAUSE,
     SERVICE_MEDIA_PREVIOUS_TRACK,
     SERVICE_MEDIA_SEEK,
     SERVICE_MEDIA_STOP,
@@ -132,87 +133,175 @@ class MusicAssistantAdapter:
 
             self.hass.async_create_task(_delayed_seek())
 
-    async def async_pause(self, player_entity_id: str) -> None:
+    async def async_play_pause(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
+        """Toggle play/pause on player, trying primary then fallback entity."""
+        entities = [e for e in (player_entity_id, fallback_entity_id) if e]
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_MEDIA_PLAY_PAUSE,
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                return
+            except Exception as err:
+                _LOGGER.debug("play_pause failed on %s: %s", ent, err)
+
+        # Fallback based on state
+        for ent in entities:
+            st = self.hass.states.get(ent)
+            if st:
+                svc = SERVICE_MEDIA_PAUSE if st.state == "playing" else SERVICE_MEDIA_PLAY
+                try:
+                    await self.hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        svc,
+                        target={"entity_id": ent},
+                        blocking=True,
+                    )
+                    return
+                except Exception as err:
+                    _LOGGER.warning("Could not execute %s on %s: %s", svc, ent, err)
+
+    async def async_pause(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
         """Pause playback on player."""
-        if not player_entity_id:
-            return
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_MEDIA_PAUSE,
-            target={"entity_id": player_entity_id},
-            blocking=True,
-        )
+        entities = [e for e in (player_entity_id, fallback_entity_id) if e]
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_MEDIA_PAUSE,
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                return
+            except Exception as err:
+                _LOGGER.debug("pause failed on %s: %s", ent, err)
 
-    async def async_resume(self, player_entity_id: str) -> None:
+    async def async_resume(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
         """Resume playback on player."""
-        if not player_entity_id:
-            return
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_MEDIA_PLAY,
-            target={"entity_id": player_entity_id},
-            blocking=True,
-        )
+        entities = [e for e in (player_entity_id, fallback_entity_id) if e]
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_MEDIA_PLAY,
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                return
+            except Exception:
+                # Try play_pause as alternative
+                try:
+                    await self.hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        SERVICE_MEDIA_PLAY_PAUSE,
+                        target={"entity_id": ent},
+                        blocking=True,
+                    )
+                    return
+                except Exception as err:
+                    _LOGGER.debug("resume failed on %s: %s", ent, err)
 
-    async def async_stop(self, player_entity_id: str) -> None:
+    async def async_stop(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
         """Stop playback on player."""
-        if not player_entity_id:
-            return
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_MEDIA_STOP,
-            target={"entity_id": player_entity_id},
-            blocking=True,
-        )
+        entities = [e for e in (player_entity_id, fallback_entity_id) if e]
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_MEDIA_STOP,
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                return
+            except Exception as err:
+                _LOGGER.debug("stop failed on %s: %s", ent, err)
 
-    async def async_next(self, player_entity_id: str) -> None:
+    async def async_next(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
         """Skip to next track."""
-        if not player_entity_id:
-            return
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_MEDIA_NEXT_TRACK,
-            target={"entity_id": player_entity_id},
-            blocking=True,
-        )
+        entities = [e for e in (player_entity_id, fallback_entity_id) if e]
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_MEDIA_NEXT_TRACK,
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                return
+            except Exception as err:
+                _LOGGER.debug("next_track failed on %s: %s", ent, err)
+        _LOGGER.warning("Could not execute next track on any player (%s)", entities)
 
-    async def async_previous(self, player_entity_id: str) -> None:
+    async def async_previous(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
         """Skip to previous track or restart current."""
-        if not player_entity_id:
-            return
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_MEDIA_PREVIOUS_TRACK,
-            target={"entity_id": player_entity_id},
-            blocking=True,
-        )
+        entities = [e for e in (player_entity_id, fallback_entity_id) if e]
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_MEDIA_PREVIOUS_TRACK,
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                return
+            except Exception as err:
+                _LOGGER.debug("previous_track failed on %s: %s", ent, err)
+        _LOGGER.warning("Could not execute previous track on any player (%s)", entities)
 
-    async def async_seek(self, player_entity_id: str, position: float) -> None:
+    async def async_seek(
+        self,
+        player_entity_id: str,
+        position: float,
+        fallback_entity_id: str | None = None,
+    ) -> None:
         """Seek to specific position in seconds."""
-        if not player_entity_id:
-            return
+        entities = [e for e in (player_entity_id, fallback_entity_id) if e]
         seek_pos = max(0.0, float(position))
-        state = self.hass.states.get(player_entity_id)
+        state = self.hass.states.get(entities[0]) if entities else None
         if state:
             duration = state.attributes.get(ATTR_MEDIA_DURATION)
             if duration and duration > 0:
                 seek_pos = min(seek_pos, max(0.0, float(duration) - 1.0))
 
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_MEDIA_SEEK,
-            service_data={"seek_position": seek_pos},
-            target={"entity_id": player_entity_id},
-            blocking=True,
-        )
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_MEDIA_SEEK,
+                    service_data={"seek_position": seek_pos},
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                return
+            except Exception as err:
+                _LOGGER.debug("seek failed on %s: %s", ent, err)
 
     async def async_seek_relative(
-        self, player_entity_id: str, delta_seconds: float
+        self,
+        player_entity_id: str,
+        delta_seconds: float,
+        fallback_entity_id: str | None = None,
     ) -> None:
         """Seek relative to current position with snapshot elapsed-time correction."""
-        if not player_entity_id:
+        ent = player_entity_id or fallback_entity_id
+        if not ent:
             return
-        state = self.hass.states.get(player_entity_id)
+        state = self.hass.states.get(ent)
         if not state or state.state not in ("playing", "paused"):
             return
 
@@ -233,28 +322,32 @@ class MusicAssistantAdapter:
 
         current = base_pos + max(0.0, elapsed)
         target = current + delta_seconds
-        await self.async_seek(player_entity_id, target)
+        await self.async_seek(ent, target, fallback_entity_id=fallback_entity_id)
 
     async def async_set_volume(
         self,
         player_entity_id: str,
         volume: float,
         max_volume: float | None = None,
+        fallback_entity_id: str | None = None,
     ) -> None:
-        """Set volume level clamped to max_volume."""
-        if not player_entity_id:
-            return
+        """Set volume level clamped to max_volume across active and fallback player."""
         target_vol = max(0.0, min(1.0, float(volume)))
         if max_volume is not None:
             target_vol = min(target_vol, float(max_volume))
 
-        await self.hass.services.async_call(
-            MEDIA_PLAYER_DOMAIN,
-            SERVICE_VOLUME_SET,
-            service_data={"volume_level": target_vol},
-            target={"entity_id": player_entity_id},
-            blocking=True,
-        )
+        entities = list(dict.fromkeys([e for e in (player_entity_id, fallback_entity_id) if e]))
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_VOLUME_SET,
+                    service_data={"volume_level": target_vol},
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+            except Exception as err:
+                _LOGGER.debug("set_volume failed on %s: %s", ent, err)
 
     def get_player_state(self, player_entity_id: str) -> dict[str, Any]:
         """Fetch current playback snapshot from player state."""

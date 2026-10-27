@@ -5,17 +5,20 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from aiohttp import web
 from homeassistant.components import frontend, panel_custom
-from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
     DOMAIN,
     FRONTEND_ICON,
+    FRONTEND_PANEL_JS,
     FRONTEND_STATIC_PATH,
     FRONTEND_TITLE,
     FRONTEND_URL_PATH,
+    FRONTEND_VERSION,
 )
 from .coordinator import TonieESPCoordinator
 from .websocket_api import async_register_websocket_api
@@ -23,9 +26,41 @@ from .websocket_api import async_register_websocket_api
 _LOGGER = logging.getLogger(__name__)
 
 
+class TonieESPFrontendView(HomeAssistantView):
+    """View to serve compiled TonieESP frontend JavaScript file directly with correct MIME type."""
+
+    url = f"{FRONTEND_STATIC_PATH}/{FRONTEND_PANEL_JS}"
+    extra_urls = ["/tonieesp/frontend.js"]
+    name = f"{DOMAIN}:frontend_js"
+    requires_auth = False
+    cors_allowed = True
+
+    def __init__(self, js_path: Path) -> None:
+        """Initialize view."""
+        self._js_path = js_path
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Serve JavaScript bundle."""
+        if not self._js_path.exists():
+            return web.Response(status=404, text="Frontend file not found")
+
+        return web.FileResponse(
+            self._js_path,
+            headers={
+                "Content-Type": "application/javascript",
+                "Cache-Control": (
+                    "public, max-age=31536000"
+                    if "v=" in request.query_string
+                    else "no-cache"
+                ),
+            },
+        )
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up the TonieESP component."""
     hass.data.setdefault(DOMAIN, {})
+    await _async_register_frontend(hass)
     return True
 
 
@@ -66,7 +101,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.info("Last Toniebox removed, cleaning up TonieESP panel and resources")
             await coordinator.async_unload()
             try:
-                frontend.async_remove_panel(hass, FRONTEND_URL_PATH)
+                frontend.async_remove_panel(hass, FRONTEND_URL_PATH, warn_if_unknown=False)
             except Exception as err:
                 _LOGGER.debug("Could not remove frontend panel: %s", err)
             hass.data.pop(DOMAIN, None)
@@ -81,46 +116,73 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:
     """Register frontend JavaScript resource and Home Assistant sidebar panel."""
-    if hass.data[DOMAIN].get("frontend_registered") or (
-        frontend.DATA_PANELS in hass.data
-        and FRONTEND_URL_PATH in hass.data[frontend.DATA_PANELS]
-    ):
-        return
-
     frontend_dir = Path(__file__).parent / "frontend"
-    frontend_js = frontend_dir / "tonieesp-panel.js"
+    frontend_js = frontend_dir / FRONTEND_PANEL_JS
 
     if not frontend_js.exists():
         _LOGGER.error("TonieESP frontend file not found at %s", frontend_js)
         return
 
-    # 1. Register static path in HTTP server (both modern async and legacy fallback)
-    if hasattr(hass, "http"):
-        if hasattr(hass.http, "async_register_static_paths"):
+    # 1. Register explicit HTTP view for both static URL and legacy fallback URL
+    if hasattr(hass, "http") and hasattr(hass.http, "register_view"):
+        if not hass.data[DOMAIN].get("frontend_view_registered"):
             try:
-                await hass.http.async_register_static_paths(
-                    [
-                        StaticPathConfig(
-                            url_path=FRONTEND_STATIC_PATH,
-                            path=str(frontend_js),
-                            cache_headers=False,
-                        )
-                    ]
-                )
-                _LOGGER.debug("Registered static path %s -> %s", FRONTEND_STATIC_PATH, frontend_js)
-            except Exception as err:
-                _LOGGER.warning("Could not register static path via async_register_static_paths: %s", err)
-        elif hasattr(hass.http, "register_static_path"):
-            try:
-                hass.http.register_static_path(
-                    FRONTEND_STATIC_PATH,
-                    str(frontend_js),
-                    cache_headers=False,
+                hass.http.register_view(TonieESPFrontendView(frontend_js))
+                hass.data[DOMAIN]["frontend_view_registered"] = True
+                _LOGGER.debug(
+                    "Registered TonieESP frontend HTTP view at %s",
+                    TonieESPFrontendView.url,
                 )
             except Exception as err:
-                _LOGGER.debug("Static path registration result: %s", err)
+                _LOGGER.debug("Could not register frontend view: %s", err)
 
-    # 2. Register custom panel using panel_custom
+    # 2. Register static path in HTTP server (serves the whole frontend directory)
+    if hasattr(hass, "http"):
+        if not hass.data[DOMAIN].get("static_path_registered"):
+            if hasattr(hass.http, "async_register_static_paths"):
+                try:
+                    await hass.http.async_register_static_paths(
+                        [
+                            StaticPathConfig(
+                                url_path=FRONTEND_STATIC_PATH,
+                                path=str(frontend_dir),
+                                cache_headers=False,
+                            )
+                        ]
+                    )
+                    hass.data[DOMAIN]["static_path_registered"] = True
+                    _LOGGER.debug(
+                        "Registered static directory %s -> %s",
+                        FRONTEND_STATIC_PATH,
+                        frontend_dir,
+                    )
+                except Exception as err:
+                    _LOGGER.debug(
+                        "Could not register static path via async_register_static_paths: %s",
+                        err,
+                    )
+            elif hasattr(hass.http, "register_static_path"):
+                try:
+                    hass.http.register_static_path(
+                        FRONTEND_STATIC_PATH,
+                        str(frontend_dir),
+                        cache_headers=False,
+                    )
+                    hass.data[DOMAIN]["static_path_registered"] = True
+                except Exception as err:
+                    _LOGGER.debug("Static path registration result: %s", err)
+
+    # 3. Register custom panel using panel_custom
+    # Always ensure stale or previously registered panel is updated to the latest module_url
+    if (
+        frontend.DATA_PANELS in hass.data
+        and FRONTEND_URL_PATH in hass.data[frontend.DATA_PANELS]
+    ):
+        try:
+            frontend.async_remove_panel(hass, FRONTEND_URL_PATH, warn_if_unknown=False)
+        except Exception as err:
+            _LOGGER.debug("Removing existing panel for refresh: %s", err)
+
     try:
         await panel_custom.async_register_panel(
             hass=hass,
@@ -128,16 +190,15 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
             webcomponent_name="tonieesp-panel",
             sidebar_title=FRONTEND_TITLE,
             sidebar_icon=FRONTEND_ICON,
-            module_url=f"{FRONTEND_STATIC_PATH}?v=1.0.0",
+            module_url=f"{FRONTEND_STATIC_PATH}/{FRONTEND_PANEL_JS}?v={FRONTEND_VERSION}",
             require_admin=False,
         )
         hass.data[DOMAIN]["frontend_registered"] = True
-        _LOGGER.info("Registered TonieESP sidebar custom panel at /%s", FRONTEND_URL_PATH)
-    except ValueError as err:
-        if "Overwriting panel" in str(err):
-            hass.data[DOMAIN]["frontend_registered"] = True
-            _LOGGER.debug("TonieESP sidebar panel already registered: %s", err)
-        else:
-            _LOGGER.error("ValueError registering TonieESP sidebar panel: %s", err)
+        _LOGGER.info(
+            "Registered TonieESP sidebar custom panel at /%s (module: %s/%s)",
+            FRONTEND_URL_PATH,
+            FRONTEND_STATIC_PATH,
+            FRONTEND_PANEL_JS,
+        )
     except Exception as err:
         _LOGGER.error("Failed to register TonieESP sidebar panel via panel_custom: %s", err)

@@ -156,6 +156,8 @@ async def test_ws_playback_control(hass, mock_coordinator, mock_connection):
 
     box_mock = MagicMock()
     box_mock.ma_player_entity = "media_player.box_player"
+    box_mock.speaker_entity = "media_player.box_speaker"
+    box_mock.get_active_player_entity.return_value = "media_player.box_player"
     box_mock.max_volume = 0.8
     mock_coordinator.device_manager.get_box.return_value = box_mock
     mock_coordinator.ma_adapter.async_resume = AsyncMock()
@@ -167,7 +169,9 @@ async def test_ws_playback_control(hass, mock_coordinator, mock_connection):
         mock_connection,
         {"id": 1, "type": "tonieesp/playback/control", "box_id": "box_1", "action": "play"},
     )
-    mock_coordinator.ma_adapter.async_resume.assert_called_once_with("media_player.box_player")
+    mock_coordinator.ma_adapter.async_resume.assert_called_once_with(
+        "media_player.box_player", fallback_entity_id="media_player.box_speaker"
+    )
     mock_connection.send_result.assert_called_once_with(1, {"status": "ok"})
 
     # Pause
@@ -177,5 +181,7 @@ async def test_ws_playback_control(hass, mock_coordinator, mock_connection):
         mock_connection,
         {"id": 2, "type": "tonieesp/playback/control", "box_id": "box_1", "action": "pause"},
     )
-    mock_coordinator.ma_adapter.async_pause.assert_called_once_with("media_player.box_player")
+    mock_coordinator.ma_adapter.async_pause.assert_called_once_with(
+        "media_player.box_player", fallback_entity_id="media_player.box_speaker"
+    )
     mock_connection.send_result.assert_called_once_with(2, {"status": "ok"})

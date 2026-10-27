@@ -32,6 +32,7 @@ def mock_box():
     box.name = "Kinderzimmer"
     box.esphome_device_id = "device_kz"
     box.ma_player_entity = "media_player.kz_player"
+    box.speaker_entity = "media_player.kz_speaker"
     box.gestures_enabled = True
     box.left_tap_action = "previous_track"
     box.right_tap_action = "next_track"
@@ -39,6 +40,7 @@ def mock_box():
     box.right_tilt_action = "seek_forward"
     box.seek_step = 10
     box.max_volume = 0.8
+    box.get_active_player_entity.return_value = "media_player.kz_player"
     box.async_handle_tag_scanned = AsyncMock()
     return box
 
@@ -92,14 +94,19 @@ async def test_tap_gestures(hass, mock_device_manager, mock_box):
         EVENT_ESPHOME_TAP,
         {"device_id": "device_kz", "axis": "y", "side": "pos"},
     )
-    mock_device_manager.ma_adapter.async_previous.assert_called_once_with("media_player.kz_player")
+    mock_device_manager.ma_adapter.async_previous.assert_called_once_with(
+        "media_player.kz_player", fallback_entity_id="media_player.kz_speaker"
+    )
 
     # 3. Right tap (axis 'y', side 'neg') -> next_track
+    handler._last_gesture_time.clear()
     await hass.bus.async_fire(
         EVENT_ESPHOME_TAP,
         {"device_id": "device_kz", "axis": "y", "side": "neg"},
     )
-    mock_device_manager.ma_adapter.async_next.assert_called_once_with("media_player.kz_player")
+    mock_device_manager.ma_adapter.async_next.assert_called_once_with(
+        "media_player.kz_player", fallback_entity_id="media_player.kz_speaker"
+    )
 
     handler.async_unload()
 
@@ -117,17 +124,18 @@ async def test_tilt_gestures(hass, mock_device_manager, mock_box):
         {"device_id": "device_kz", "side": "pos"},
     )
     mock_device_manager.ma_adapter.async_seek_relative.assert_called_once_with(
-        "media_player.kz_player", -10.0
+        "media_player.kz_player", -10.0, fallback_entity_id="media_player.kz_speaker"
     )
 
     # 2. Right tilt (side 'neg') -> seek forward (+10s)
+    handler._last_gesture_time.clear()
     mock_device_manager.ma_adapter.async_seek_relative.reset_mock()
     await hass.bus.async_fire(
         EVENT_ESPHOME_TILT,
         {"device_id": "device_kz", "side": "neg"},
     )
     mock_device_manager.ma_adapter.async_seek_relative.assert_called_once_with(
-        "media_player.kz_player", 10.0
+        "media_player.kz_player", 10.0, fallback_entity_id="media_player.kz_speaker"
     )
 
     handler.async_unload()

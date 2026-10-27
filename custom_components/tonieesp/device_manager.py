@@ -125,6 +125,59 @@ class TonieBoxInstance:
         return self.resolver.ma_player
 
     @property
+    def tap_threshold_entity(self) -> str | None:
+        """ESPHome tap threshold number entity."""
+        return self.resolver.tap_threshold
+
+    @property
+    def tap_time_limit_entity(self) -> str | None:
+        """ESPHome tap time limit number entity."""
+        return self.resolver.tap_time_limit
+
+    def get_active_player_entity(self) -> str | None:
+        """Determine the currently active media player (MA player or ESPHome speaker).
+
+        Prefers whichever entity is actively 'playing' or 'paused'. If both are
+        idle or none is playing, prefers the Music Assistant player if available,
+        else the ESPHome speaker.
+        """
+        ma = self.ma_player_entity
+        spk = self.speaker_entity
+
+        # 1. Check if one is actively playing
+        if ma:
+            st = self.hass.states.get(ma)
+            if st and st.state == "playing":
+                return ma
+        if spk:
+            st = self.hass.states.get(spk)
+            if st and st.state == "playing":
+                return spk
+
+        # 2. Check if one is paused
+        if ma:
+            st = self.hass.states.get(ma)
+            if st and st.state == "paused":
+                return ma
+        if spk:
+            st = self.hass.states.get(spk)
+            if st and st.state == "paused":
+                return spk
+
+        # 3. Default to MA player if available, else speaker
+        return ma or spk
+
+    def _get_number_entity_value(self, entity_id: str | None) -> float | None:
+        """Read float value of a number entity."""
+        if not entity_id:
+            return None
+        st = self.hass.states.get(entity_id)
+        if st and st.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            with contextlib.suppress(ValueError):
+                return float(st.state)
+        return None
+
+    @property
     def nfc_sensor_entity(self) -> str | None:
         """NFC text sensor entity."""
         return self.resolver.nfc_sensor
@@ -172,9 +225,23 @@ class TonieBoxInstance:
 
     def get_state(self) -> dict[str, Any]:
         """Generate comprehensive status dictionary for this box."""
-        player = self.ma_player_entity
+        player = self.get_active_player_entity() or self.ma_player_entity or self.speaker_entity
         playback = self.ma_adapter.get_player_state(player) if player else {}
+
+        # If active player is MA and reporting 0 volume, check speaker volume
+        if self.speaker_entity and self.speaker_entity != player:
+            spk_state = self.hass.states.get(self.speaker_entity)
+            if spk_state and (playback.get("volume_level") in (None, 0.0)):
+                spk_vol = spk_state.attributes.get("volume_level")
+                if spk_vol is not None:
+                    playback["volume_level"] = spk_vol
+
         battery = self.get_battery_info()
+
+        hardware_tuning = {
+            "tap_threshold": self._get_number_entity_value(self.tap_threshold_entity),
+            "tap_time_limit": self._get_number_entity_value(self.tap_time_limit_entity),
+        }
 
         current_tag_info = None
         if self.current_tag:
@@ -198,6 +265,7 @@ class TonieBoxInstance:
             "unknown_tag": self.unknown_tag,
             "entities": self.resolver.all_resolved,
             "playback": playback,
+            "hardware_tuning": hardware_tuning,
             "settings": {
                 "pause_on_removal": self.pause_on_removal,
                 "resume_on_replace": self.resume_on_replace,
@@ -324,6 +392,40 @@ class TonieBoxInstance:
         if CONF_MUSIC_ASSISTANT_PLAYER in options:
             self.resolver.configured_ma_player = options[CONF_MUSIC_ASSISTANT_PLAYER]
             self.resolver.resolve_entities()
+
+        self.on_state_change(self)
+
+    async def async_set_hardware_tuning(
+        self,
+        tap_threshold: float | None = None,
+        tap_time_limit: float | None = None,
+    ) -> None:
+        """Set tap threshold and tap time limit on ESPHome number entities."""
+        if tap_threshold is not None and self.tap_threshold_entity:
+            try:
+                await self.hass.services.async_call(
+                    "number",
+                    "set_value",
+                    {"value": float(tap_threshold)},
+                    target={"entity_id": self.tap_threshold_entity},
+                    blocking=True,
+                )
+                _LOGGER.info("Set tap_threshold on %s to %s", self.tap_threshold_entity, tap_threshold)
+            except Exception as err:
+                _LOGGER.warning("Could not set tap_threshold: %s", err)
+
+        if tap_time_limit is not None and self.tap_time_limit_entity:
+            try:
+                await self.hass.services.async_call(
+                    "number",
+                    "set_value",
+                    {"value": float(tap_time_limit)},
+                    target={"entity_id": self.tap_time_limit_entity},
+                    blocking=True,
+                )
+                _LOGGER.info("Set tap_time_limit on %s to %s", self.tap_time_limit_entity, tap_time_limit)
+            except Exception as err:
+                _LOGGER.warning("Could not set tap_time_limit: %s", err)
 
         self.on_state_change(self)
 

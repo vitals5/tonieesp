@@ -96,6 +96,16 @@ class TonieBoxEntityResolver:
         return self._resolved.get("max_volume")
 
     @property
+    def tap_threshold(self) -> str | None:
+        """Tap threshold number entity ID."""
+        return self._resolved.get("tap_threshold")
+
+    @property
+    def tap_time_limit(self) -> str | None:
+        """Tap time limit number entity ID."""
+        return self._resolved.get("tap_time_limit")
+
+    @property
     def all_resolved(self) -> dict[str, str | None]:
         """Dictionary of all resolved entities."""
         return dict(self._resolved)
@@ -166,6 +176,8 @@ class TonieBoxEntityResolver:
         found_max_volume: str | None = None
         found_sleep_timeout: str | None = None
         found_wake_cause: str | None = None
+        found_tap_threshold: str | None = None
+        found_tap_time_limit: str | None = None
 
         for entry in entries:
             orig = (entry.original_name or "").lower()
@@ -218,6 +230,16 @@ class TonieBoxEntityResolver:
                 if "sleep_timeout" in orig or "sleep timeout" in orig:
                     found_sleep_timeout = entry.entity_id
 
+            # Tap threshold number
+            if domain == "number" and not found_tap_threshold:
+                if "tap_threshold" in orig or "tap threshold" in orig or "tap_threshold" in ent_id:
+                    found_tap_threshold = entry.entity_id
+
+            # Tap time limit number
+            if domain == "number" and not found_tap_time_limit:
+                if "tap_time_limit" in orig or "tap time limit" in orig or "tap_time_limit" in ent_id:
+                    found_tap_time_limit = entry.entity_id
+
             # Last wake cause
             if domain in ("sensor", "text_sensor") and not found_wake_cause:
                 if "wake_cause" in orig or "wake cause" in orig:
@@ -237,6 +259,8 @@ class TonieBoxEntityResolver:
         self._resolved["max_volume"] = found_max_volume
         self._resolved["sleep_timeout"] = found_sleep_timeout
         self._resolved["last_wake_cause"] = found_wake_cause
+        self._resolved["tap_threshold"] = found_tap_threshold
+        self._resolved["tap_time_limit"] = found_tap_time_limit
 
         _LOGGER.debug(
             "Resolved entities for device '%s': speaker=%s, ma_player=%s, nfc=%s",

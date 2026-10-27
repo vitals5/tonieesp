@@ -17,6 +17,8 @@ export class TonieESPBoxDetailView extends LitElement {
   @state() private _rightTapAction = "next_track";
   @state() private _leftTiltAction = "seek_backward";
   @state() private _rightTiltAction = "seek_forward";
+  @state() private _tapThreshold: number | null = null;
+  @state() private _tapTimeLimit: number | null = null;
 
   static styles = css`
     :host {
@@ -180,6 +182,10 @@ export class TonieESPBoxDetailView extends LitElement {
       this._leftTiltAction = s.left_tilt_action || "seek_backward";
       this._rightTiltAction = s.right_tilt_action || "seek_forward";
     }
+    if (this.box?.hardware_tuning) {
+      this._tapThreshold = this.box.hardware_tuning.tap_threshold ?? 20;
+      this._tapTimeLimit = this.box.hardware_tuning.tap_time_limit ?? 10;
+    }
   }
 
   private _onSave() {
@@ -193,6 +199,8 @@ export class TonieESPBoxDetailView extends LitElement {
       right_tap_action: this._rightTapAction,
       left_tilt_action: this._leftTiltAction,
       right_tilt_action: this._rightTiltAction,
+      tap_threshold: this._tapThreshold,
+      tap_time_limit: this._tapTimeLimit,
     };
 
     this.dispatchEvent(
@@ -358,6 +366,51 @@ export class TonieESPBoxDetailView extends LitElement {
                     10
                   ))}
               />
+            </div>
+          </div>
+        </div>
+
+        <!-- Sensor Fine-Tuning (Vibration Filter) -->
+        <div class="section">
+          <h3 class="section-title">${localize("box.section_tuning", this.lang)}</h3>
+          <p style="font-size: 13px; color: var(--secondary-text-color, #666); margin: -4px 0 16px 0;">
+            ${localize("box.tuning_hint", this.lang)}
+          </p>
+          <div class="grid-2">
+            <div class="setting-group">
+              <label>${localize("box.tap_threshold", this.lang)}</label>
+              <input
+                type="number"
+                min="1"
+                max="127"
+                step="1"
+                .value=${this._tapThreshold !== null ? String(this._tapThreshold) : "20"}
+                @change=${(e: Event) =>
+                  (this._tapThreshold = parseFloat(
+                    (e.target as HTMLInputElement).value
+                  ))}
+              />
+              <span style="font-size: 12px; color: var(--secondary-text-color, #777); margin-top: 4px;">
+                ${localize("box.tap_threshold_hint", this.lang)}
+              </span>
+            </div>
+
+            <div class="setting-group">
+              <label>${localize("box.tap_time_limit", this.lang)}</label>
+              <input
+                type="number"
+                min="1"
+                max="255"
+                step="1"
+                .value=${this._tapTimeLimit !== null ? String(this._tapTimeLimit) : "10"}
+                @change=${(e: Event) =>
+                  (this._tapTimeLimit = parseFloat(
+                    (e.target as HTMLInputElement).value
+                  ))}
+              />
+              <span style="font-size: 12px; color: var(--secondary-text-color, #777); margin-top: 4px;">
+                ${localize("box.tap_time_limit_hint", this.lang)}
+              </span>
             </div>
           </div>
         </div>

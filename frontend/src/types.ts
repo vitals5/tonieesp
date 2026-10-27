@@ -51,6 +51,10 @@ export interface TonieBox {
   entities: Record<string, string | null>;
   playback: PlaybackState;
   settings: BoxSettings;
+  hardware_tuning?: {
+    tap_threshold: number | null;
+    tap_time_limit: number | null;
+  };
 }
 
 export interface MediaSettings {
