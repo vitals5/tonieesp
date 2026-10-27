@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TonieESP – Toniebox hinzufügen",
+        "description": "Wähle die ESPHome-Toniebox aus, die über TonieESP verwaltet werden soll.",
+        "data": {
+          "esphome_device_id": "ESPHome-Gerät",
+          "name": "Anzeigename der Toniebox",
+          "music_assistant_player": "Music-Assistant-Player (optional)"
+        }
+      }
+    },
+    "error": {
+      "no_devices_found": "Keine ESPHome-Geräte gefunden."
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits in TonieESP eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TonieESP Einstellungen",
+        "data": {
+          "music_assistant_player": "Music-Assistant-Player",
+          "pause_on_removal": "Wiedergabe beim Abnehmen pausieren",
+          "resume_on_replace": "Wiedergabe beim Aufsetzen fortsetzen",
+          "max_volume": "Maximale Lautstärke (0.1 - 1.0)",
+          "seek_step": "Spulschrittweite (Sekunden)",
+          "gestures_enabled": "Gesten aktivieren (Klopfen & Neigen)",
+          "left_tap_action": "Aktion: Linker Klopfer",
+          "right_tap_action": "Aktion: Rechter Klopfer",
+          "left_tilt_action": "Aktion: Nach links geneigt",
+          "right_tilt_action": "Aktion: Nach rechts geneigt"
+        }
+      }
+    }
+  }
+}

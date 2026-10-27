@@ -1,0 +1,41 @@
+[project]
+name = "tonieesp"
+version = "1.0.0"
+description = "TonieESP - Home Assistant Custom Integration for ESPHome Toniebox with Music Assistant"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "vitals5" }]
+requires-python = ">=3.12"
+dependencies = [
+    "homeassistant>=2024.1.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "SIM102", # single if statement
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

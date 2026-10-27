@@ -1,0 +1,30 @@
+play_tag:
+  name: Play Tag
+  description: Plays the media assigned to an NFC tag on a specific Toniebox.
+  fields:
+    box_id:
+      name: Toniebox
+      description: The Toniebox instance to play on.
+      required: true
+      selector:
+        config_entry:
+          integration: tonieesp
+    tag_uid:
+      name: NFC Tag UID
+      description: The 16-hex UID of the tag to play.
+      required: true
+      example: "E004015023AABBCC"
+      selector:
+        text:
+
+clear_session:
+  name: Clear Saved Session
+  description: Resets the saved audiobook/resume progress for a specific NFC tag.
+  fields:
+    tag_uid:
+      name: NFC Tag UID
+      description: The tag UID whose progress to reset.
+      required: true
+      example: "E004015023AABBCC"
+      selector:
+        text:

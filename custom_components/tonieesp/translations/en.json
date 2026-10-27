@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TonieESP – Add Toniebox",
+        "description": "Select the ESPHome Toniebox to manage via TonieESP.",
+        "data": {
+          "esphome_device_id": "ESPHome Device",
+          "name": "Toniebox Name",
+          "music_assistant_player": "Music Assistant Player (optional)"
+        }
+      }
+    },
+    "error": {
+      "no_devices_found": "No ESPHome devices found."
+    },
+    "abort": {
+      "already_configured": "This device is already configured in TonieESP."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TonieESP Settings",
+        "data": {
+          "music_assistant_player": "Music Assistant Player",
+          "pause_on_removal": "Pause playback when tag is removed",
+          "resume_on_replace": "Resume playback when tag is replaced",
+          "max_volume": "Maximum Volume (0.1 - 1.0)",
+          "seek_step": "Seek Step Size (seconds)",
+          "gestures_enabled": "Enable Gestures (Tap & Tilt)",
+          "left_tap_action": "Action: Left Tap",
+          "right_tap_action": "Action: Right Tap",
+          "left_tilt_action": "Action: Tilt Left",
+          "right_tilt_action": "Action: Tilt Right"
+        }
+      }
+    }
+  }
+}
