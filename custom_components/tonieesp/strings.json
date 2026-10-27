@@ -3,10 +3,10 @@
     "step": {
       "user": {
         "title": "TonieESP – Toniebox hinzufügen",
-        "description": "Wähle die ESPHome-Toniebox aus, die über TonieESP verwaltet werden soll.",
+        "description": "Wähle deine ESPHome-Toniebox aus. Du kannst nach dem Gerätenamen suchen.",
         "data": {
           "esphome_device_id": "ESPHome-Gerät",
-          "name": "Anzeigename der Toniebox",
+          "name": "Anzeigename (optional)",
           "music_assistant_player": "Music-Assistant-Player (optional)"
         }
       }

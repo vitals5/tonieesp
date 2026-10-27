@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { EventLogItem } from "../types";
+import { localize } from "../localize";
 
 @customElement("tonieesp-logs-view")
 export class TonieESPLogsView extends LitElement {
@@ -108,21 +109,20 @@ export class TonieESPLogsView extends LitElement {
     return html`
       <div class="container">
         <div class="header-row">
-          <h2 class="title">Ereignisprotokoll & Live-Diagnose</h2>
+          <h2 class="title">${localize("logs.title", this.lang)}</h2>
           <button
             class="btn-clear"
             @click=${() =>
               this.dispatchEvent(new CustomEvent("clear-logs", { bubbles: true, composed: true }))}
           >
-            Protokoll leeren
+            ${localize("logs.clear_btn", this.lang)}
           </button>
         </div>
 
         <div class="log-list">
           ${this.logs.length === 0
             ? html`<div class="empty-state">
-                Noch keine Ereignisse erfasst. Stelle eine Figur auf oder tippe
-                auf eine Toniebox, um Gesten und Scans live zu sehen.
+                ${localize("logs.empty", this.lang)}
               </div>`
             : this.logs.map((item) => {
                 let badgeClass = "";

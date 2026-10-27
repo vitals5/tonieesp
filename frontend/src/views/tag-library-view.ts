@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { NFCTag, TonieBox } from "../types";
+import { localize } from "../localize";
 import "../components/tag-card";
 
 @customElement("tonieesp-tag-library-view")
@@ -140,12 +141,13 @@ export class TonieESPTagLibraryView extends LitElement {
   render() {
     const filtered = this._filteredTags();
     const types = [
-      { id: "", label: "Alle Typen" },
-      { id: "playlist", label: "Playlists" },
-      { id: "album", label: "Alben" },
-      { id: "audiobook", label: "Hörbücher" },
-      { id: "track", label: "Titel" },
-      { id: "radio", label: "Radio" },
+      { id: "", label: localize("tags.filter_all", this.lang) },
+      { id: "playlist", label: localize("tags.filter_playlist", this.lang) },
+      { id: "album", label: localize("tags.filter_album", this.lang) },
+      { id: "audiobook", label: localize("tags.filter_audiobook", this.lang) },
+      { id: "track", label: localize("tags.filter_track", this.lang) },
+      { id: "radio", label: localize("tags.filter_radio", this.lang) },
+      { id: "podcast", label: localize("tags.filter_podcast", this.lang) },
     ];
 
     return html`
@@ -153,7 +155,7 @@ export class TonieESPTagLibraryView extends LitElement {
         <input
           class="search-input"
           type="search"
-          placeholder="NFC-Figuren durchsuchen (Name, UID, Titel)..."
+          placeholder=${localize("tags.search_placeholder", this.lang)}
           .value=${this._searchQuery}
           @input=${(e: Event) =>
             (this._searchQuery = (e.target as HTMLInputElement).value)}
@@ -164,14 +166,14 @@ export class TonieESPTagLibraryView extends LitElement {
             @click=${() =>
               this.dispatchEvent(new CustomEvent("start-scan-learning", { bubbles: true, composed: true }))}
           >
-            ⚡ Scan-Lernmodus
+            ${localize("tags.scan_learn", this.lang)}
           </button>
           <button
             class="btn btn-primary"
             @click=${() =>
               this.dispatchEvent(new CustomEvent("add-new-tag", { bubbles: true, composed: true }))}
           >
-            + Figur hinzufügen
+            ${localize("tags.add_new", this.lang)}
           </button>
         </div>
       </div>
@@ -193,10 +195,9 @@ export class TonieESPTagLibraryView extends LitElement {
         ? html`
             <div class="empty-state">
               <div class="empty-icon">🧸</div>
-              <h3>Keine Figuren gefunden</h3>
+              <h3>${localize("tags.empty", this.lang)}</h3>
               <p>
-                Lege eine Figur auf deine Toniebox oder klicke auf "+ Figur
-                hinzufügen".
+                ${localize("tags.empty_hint", this.lang)}
               </p>
             </div>
           `
@@ -207,6 +208,7 @@ export class TonieESPTagLibraryView extends LitElement {
                   html`<tonieesp-tag-card
                     .tag=${tag}
                     .boxes=${this.boxes}
+                    .lang=${this.lang}
                   ></tonieesp-tag-card>`
               )}
             </div>

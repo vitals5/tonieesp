@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { MediaSearchResult } from "../types";
+import { localize } from "../localize";
 import "../components/media-item-card";
 
 @customElement("tonieesp-media-browser-view")
@@ -110,17 +111,16 @@ export class TonieESPMediaBrowserView extends LitElement {
     return html`
       <div class="container">
         <div class="header-row">
-          <h2 class="title">Music Assistant Mediathek</h2>
+          <h2 class="title">${localize("browser.title", this.lang)}</h2>
           <p class="subtitle">
-            Suche nach Playlists, Alben, Hörspielen oder Titeln und weise sie
-            einer Tonie-Figur zu.
+            ${localize("browser.subtitle", this.lang)}
           </p>
 
           <form class="search-row" @submit=${this._onSearch}>
             <input
               class="search-input"
               type="search"
-              placeholder="Suchbegriff eingeben (z.B. Die drei ???, Bibi Blocksberg, Playlist-Name)..."
+              placeholder=${localize("browser.search_placeholder", this.lang)}
               .value=${this._query}
               @input=${(e: Event) =>
                 (this._query = (e.target as HTMLInputElement).value)}
@@ -130,23 +130,18 @@ export class TonieESPMediaBrowserView extends LitElement {
               type="submit"
               ?disabled=${this._loading || !this._query.trim()}
             >
-              ${this._loading ? "Suche..." : "Suchen"}
+              ${this._loading ? localize("browser.searching", this.lang) : localize("browser.search_btn", this.lang)}
             </button>
           </form>
         </div>
 
         <div class="results-grid">
           ${this._results.map(
-            (item) => html`<tonieesp-media-item-card .item=${item}></tonieesp-media-item-card>`
+            (item) => html`<tonieesp-media-item-card .item=${item} .lang=${this.lang}></tonieesp-media-item-card>`
           )}
           ${this._searched && !this._loading && this._results.length === 0
             ? html`<div class="empty-state">
-                Keine passenden Medien in Music Assistant gefunden.
-              </div>`
-            : ""}
-          ${!this._searched
-            ? html`<div class="empty-state">
-                Gib einen Suchbegriff ein, um Music Assistant zu durchsuchen.
+                ${localize("browser.no_results", this.lang)}
               </div>`
             : ""}
         </div>

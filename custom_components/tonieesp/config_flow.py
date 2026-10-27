@@ -10,6 +10,8 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.selector import (
+    DeviceSelector,
+    DeviceSelectorConfig,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -80,15 +82,23 @@ class TonieESPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle the initial setup step."""
+        """Handle the initial setup step with live-search and ESPHome device filter."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             dev_id = user_input[CONF_ESPHOME_DEVICE_ID]
-            name = user_input.get(CONF_NAME, "Toniebox")
 
             await self.async_set_unique_id(f"tonieesp_{dev_id}")
             self._abort_if_unique_id_configured()
+
+            dev_reg = dr.async_get(self.hass)
+            device_entry = dev_reg.async_get(dev_id)
+            default_name = (
+                (device_entry.name_by_user or device_entry.name)
+                if device_entry
+                else "Toniebox"
+            )
+            name = user_input.get(CONF_NAME) or default_name
 
             return self.async_create_entry(
                 title=name,
@@ -99,50 +109,12 @@ class TonieESPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 },
             )
 
-        # Query device registry for ESPHome devices
-        dev_reg = dr.async_get(self.hass)
-        existing_device_ids = {
-            entry.data.get(CONF_ESPHOME_DEVICE_ID)
-            for entry in self._async_current_entries()
-        }
-
-        devices: dict[str, str] = {}
-        for dev in dev_reg.devices.values():
-            if dev.id in existing_device_ids:
-                continue
-
-            # Check if associated with ESPHome
-            is_esphome = False
-            for entry_id in dev.config_entries:
-                cfg_entry = self.hass.config_entries.async_get_entry(entry_id)
-                if cfg_entry and cfg_entry.domain == "esphome":
-                    is_esphome = True
-                    break
-
-            label = dev.name_by_user or dev.name or f"Device {dev.id[-6:]}"
-            if is_esphome:
-                devices[dev.id] = f"{label} (ESPHome)"
-            else:
-                devices[dev.id] = label
-
-        if not devices:
-            errors["base"] = "no_devices_found"
-            devices["none"] = "Keine verfügbaren Geräte gefunden"
-
-        device_options = [
-            SelectOptionDict(value=dev_id, label=label)
-            for dev_id, label in devices.items()
-        ]
-
         schema = vol.Schema(
             {
-                vol.Required(CONF_ESPHOME_DEVICE_ID): SelectSelector(
-                    SelectSelectorConfig(
-                        options=device_options,
-                        mode=SelectSelectorMode.DROPDOWN,
-                    )
+                vol.Required(CONF_ESPHOME_DEVICE_ID): DeviceSelector(
+                    DeviceSelectorConfig(integration="esphome")
                 ),
-                vol.Required(CONF_NAME, default="Toniebox"): str,
+                vol.Optional(CONF_NAME): str,
                 vol.Optional(CONF_MUSIC_ASSISTANT_PLAYER): EntitySelector(
                     EntitySelectorConfig(domain="media_player")
                 ),

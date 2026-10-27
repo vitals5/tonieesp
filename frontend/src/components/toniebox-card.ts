@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { TonieBox } from "../types";
+import { localize } from "../localize";
 import "./status-badge";
 
 @customElement("tonieesp-box-card")
@@ -321,10 +322,10 @@ export class TonieESPBoxCard extends LitElement {
           ? html`
               <div class="unknown-banner">
                 <span class="unknown-text"
-                  >⚡ Unbekannter Tag: ${this.box.unknown_tag}</span
+                  >⚡ ${localize("dashboard.unknown_tag_alert", this.lang)} ${this.box.unknown_tag}</span
                 >
                 <button class="btn-setup" @click=${this._onSetupUnknown}>
-                  Einrichten
+                  ${localize("dashboard.setup_tag_btn", this.lang)}
                 </button>
               </div>
             `
@@ -338,10 +339,10 @@ export class TonieESPBoxCard extends LitElement {
                     />`
                   : html`<div class="tag-cover">🧸</div>`}
                 <div class="tag-details">
-                  <div class="tag-label">Aufgesetzte Figur</div>
+                  <div class="tag-label">${localize("dashboard.current_tag", this.lang)}</div>
                   <div class="tag-name">
                     ${this.box.current_tag_info?.name ||
-                    (this.box.current_tag ? `UID: ${this.box.current_tag}` : "Keine Figur")}
+                    (this.box.current_tag ? `UID: ${this.box.current_tag}` : localize("dashboard.no_tag", this.lang))}
                   </div>
                   ${this.box.current_tag_info?.media_title
                     ? html`<div class="tag-media">
@@ -355,29 +356,29 @@ export class TonieESPBoxCard extends LitElement {
         <!-- Playback Controls -->
         <div class="player-section">
           <div class="playback-info">
-            <span class="playback-title">${pb.title || "Keine Wiedergabe"}</span>
-            <span class="playback-status">${pb.state || "Bereit"}</span>
+            <span class="playback-title">${pb.title || (this.lang.startsWith("en") ? "No playback" : "Keine Wiedergabe")}</span>
+            <span class="playback-status">${pb.state || (this.lang.startsWith("en") ? "Ready" : "Bereit")}</span>
           </div>
 
           <div class="controls-row">
             <div class="playback-buttons">
               <button
                 class="btn-ctrl"
-                title="Vorheriger Titel"
+                title=${localize("control.prev", this.lang)}
                 @click=${() => this._onControl("previous")}
               >
                 ⏮
               </button>
               <button
                 class="btn-ctrl btn-play"
-                title="${isPlaying ? "Pause" : "Play"}"
+                title=${isPlaying ? localize("control.pause", this.lang) : localize("control.play", this.lang)}
                 @click=${() => this._onControl(isPlaying ? "pause" : "play")}
               >
                 ${isPlaying ? "⏸" : "▶"}
               </button>
               <button
                 class="btn-ctrl"
-                title="Nächster Titel"
+                title=${localize("control.next", this.lang)}
                 @click=${() => this._onControl("next")}
               >
                 ⏭
@@ -393,7 +394,7 @@ export class TonieESPBoxCard extends LitElement {
                 step="0.05"
                 .value=${String(pb.volume_level || 0.4)}
                 @change=${this._onVolumeChange}
-                title="Lautstärke"
+                title=${localize("dashboard.volume", this.lang)}
               />
               <span>🔊</span>
             </div>
@@ -403,7 +404,7 @@ export class TonieESPBoxCard extends LitElement {
         <!-- Footer -->
         <div class="card-footer">
           <button class="btn-link" @click=${this._onOpenDetails}>
-            Einstellungen & Gesten →
+            ${localize("control.details", this.lang)} →
           </button>
         </div>
       </div>

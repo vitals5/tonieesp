@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { TonieBox } from "../types";
+import { localize } from "../localize";
 
 @customElement("tonieesp-box-detail-view")
 export class TonieESPBoxDetailView extends LitElement {
@@ -218,15 +219,15 @@ export class TonieESPBoxDetailView extends LitElement {
     return html`
       <div class="container">
         <div class="header-row">
-          <h2 class="title">📻 ${this.box.name} – Geräteeinstellungen</h2>
+          <h2 class="title">📻 ${localize("box.detail_title", this.lang, { name: this.box.name })}</h2>
           <button class="btn btn-back" @click=${this._onBack}>
-            ← Zurück
+            ${localize("box.back", this.lang)}
           </button>
         </div>
 
         <!-- Automation & Playback Behavior -->
         <div class="section" style="border: none; padding-top: 0;">
-          <h3 class="section-title">Wiedergabeverhalten</h3>
+          <h3 class="section-title">${localize("box.section_playback", this.lang)}</h3>
           <div class="checkbox-setting">
             <input
               type="checkbox"
@@ -236,7 +237,7 @@ export class TonieESPBoxDetailView extends LitElement {
                 (this._pauseOnRemoval = (e.target as HTMLInputElement).checked)}
             />
             <label for="pause_rem"
-              >Wiedergabe beim Abnehmen der Figur pausieren</label
+              >${localize("box.pause_removal", this.lang)}</label
             >
           </div>
           <div class="checkbox-setting">
@@ -248,12 +249,12 @@ export class TonieESPBoxDetailView extends LitElement {
                 (this._resumeOnReplace = (e.target as HTMLInputElement).checked)}
             />
             <label for="resume_rep"
-              >Wiedergabe beim erneuten Aufsetzen fortsetzen</label
+              >${localize("box.resume_replace", this.lang)}</label
             >
           </div>
 
           <div class="setting-group" style="margin-top: 12px;">
-            <label>Maximale Lautstärkebegrenzung (${Math.round(this._maxVolume * 100)}%)</label>
+            <label>${localize("box.max_volume", this.lang)} (${Math.round(this._maxVolume * 100)}%)</label>
             <div class="slider-row">
               <span>0%</span>
               <input
@@ -274,7 +275,7 @@ export class TonieESPBoxDetailView extends LitElement {
 
         <!-- Gestures -->
         <div class="section">
-          <h3 class="section-title">Gestensteuerung (Beschleunigungssensor)</h3>
+          <h3 class="section-title">${localize("box.section_gestures", this.lang)}</h3>
           <div class="checkbox-setting" style="margin-bottom: 12px;">
             <input
               type="checkbox"
@@ -283,68 +284,68 @@ export class TonieESPBoxDetailView extends LitElement {
               @change=${(e: Event) =>
                 (this._gesturesEnabled = (e.target as HTMLInputElement).checked)}
             />
-            <label for="gest_en">Gesten aktivieren (Klopfen & Neigen)</label>
+            <label for="gest_en">${localize("box.gestures_enabled", this.lang)}</label>
           </div>
 
           <div class="grid-2">
             <div class="setting-group">
-              <label>Aktion: Linker Klopfer</label>
+              <label>${localize("box.left_tap", this.lang)}</label>
               <select
                 .value=${this._leftTapAction}
                 @change=${(e: Event) =>
                   (this._leftTapAction = (e.target as HTMLSelectElement).value)}
               >
-                <option value="previous_track">Vorheriger Titel (Standard)</option>
-                <option value="next_track">Nächster Titel</option>
-                <option value="play_pause">Play / Pause</option>
-                <option value="volume_down">Leiser</option>
-                <option value="none">Keine Aktion</option>
+                <option value="previous_track">${localize("action.previous_track", this.lang)}</option>
+                <option value="next_track">${localize("action.next_track", this.lang)}</option>
+                <option value="play_pause">${localize("action.play_pause", this.lang)}</option>
+                <option value="volume_down">${localize("action.volume_down", this.lang)}</option>
+                <option value="none">${localize("action.none", this.lang)}</option>
               </select>
             </div>
 
             <div class="setting-group">
-              <label>Aktion: Rechter Klopfer</label>
+              <label>${localize("box.right_tap", this.lang)}</label>
               <select
                 .value=${this._rightTapAction}
                 @change=${(e: Event) =>
                   (this._rightTapAction = (e.target as HTMLSelectElement).value)}
               >
-                <option value="next_track">Nächster Titel (Standard)</option>
-                <option value="previous_track">Vorheriger Titel</option>
-                <option value="play_pause">Play / Pause</option>
-                <option value="volume_up">Lauter</option>
-                <option value="none">Keine Aktion</option>
+                <option value="next_track">${localize("action.next_track", this.lang)}</option>
+                <option value="previous_track">${localize("action.previous_track", this.lang)}</option>
+                <option value="play_pause">${localize("action.play_pause", this.lang)}</option>
+                <option value="volume_up">${localize("action.volume_up", this.lang)}</option>
+                <option value="none">${localize("action.none", this.lang)}</option>
               </select>
             </div>
 
             <div class="setting-group">
-              <label>Aktion: Nach links geneigt</label>
+              <label>${localize("box.left_tilt", this.lang)}</label>
               <select
                 .value=${this._leftTiltAction}
                 @change=${(e: Event) =>
                   (this._leftTiltAction = (e.target as HTMLSelectElement).value)}
               >
-                <option value="seek_backward">Zurückspulen (Standard)</option>
-                <option value="seek_forward">Vorspulen</option>
-                <option value="none">Keine Aktion</option>
+                <option value="seek_backward">${localize("action.seek_backward", this.lang)}</option>
+                <option value="seek_forward">${localize("action.seek_forward", this.lang)}</option>
+                <option value="none">${localize("action.none", this.lang)}</option>
               </select>
             </div>
 
             <div class="setting-group">
-              <label>Aktion: Nach rechts geneigt</label>
+              <label>${localize("box.right_tilt", this.lang)}</label>
               <select
                 .value=${this._rightTiltAction}
                 @change=${(e: Event) =>
                   (this._rightTiltAction = (e.target as HTMLSelectElement).value)}
               >
-                <option value="seek_forward">Vorspulen (Standard)</option>
-                <option value="seek_backward">Zurückspulen</option>
-                <option value="none">Keine Aktion</option>
+                <option value="seek_forward">${localize("action.seek_forward", this.lang)}</option>
+                <option value="seek_backward">${localize("action.seek_backward", this.lang)}</option>
+                <option value="none">${localize("action.none", this.lang)}</option>
               </select>
             </div>
 
             <div class="setting-group">
-              <label>Spulschrittweite (Sekunden je Neigungsintervall)</label>
+              <label>${localize("box.seek_step", this.lang)}</label>
               <input
                 type="number"
                 min="5"
@@ -363,42 +364,42 @@ export class TonieESPBoxDetailView extends LitElement {
 
         <!-- Entity Mapping Table -->
         <div class="section">
-          <h3 class="section-title">Zugeordnete Home-Assistant-Entitäten</h3>
+          <h3 class="section-title">Home Assistant Entities</h3>
           <table class="entities-table">
             <thead>
               <tr>
-                <th>Funktion</th>
-                <th>Entität</th>
+                <th>Function</th>
+                <th>Entity ID</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>ESPHome Speaker</td>
-                <td><code>${this.box.entities.speaker || "Nicht gefunden"}</code></td>
+                <td><code>${this.box.entities.speaker || "—"}</code></td>
               </tr>
               <tr>
                 <td>Music Assistant Player</td>
-                <td><code>${this.box.entities.ma_player || "Nicht gefunden"}</code></td>
+                <td><code>${this.box.entities.ma_player || "—"}</code></td>
               </tr>
               <tr>
                 <td>NFC Tag UID Sensor</td>
-                <td><code>${this.box.entities.nfc_sensor || "Nicht gefunden"}</code></td>
+                <td><code>${this.box.entities.nfc_sensor || "—"}</code></td>
               </tr>
               <tr>
-                <td>Batterie</td>
-                <td><code>${this.box.entities.battery || "Nicht gefunden"}</code></td>
+                <td>Battery</td>
+                <td><code>${this.box.entities.battery || "—"}</code></td>
               </tr>
               <tr>
-                <td>Ladezustand</td>
-                <td><code>${this.box.entities.charging || "Nicht gefunden"}</code></td>
+                <td>Charging</td>
+                <td><code>${this.box.entities.charging || "—"}</code></td>
               </tr>
               <tr>
-                <td>LED Beleuchtung</td>
-                <td><code>${this.box.entities.led || "Nicht gefunden"}</code></td>
+                <td>LED Light</td>
+                <td><code>${this.box.entities.led || "—"}</code></td>
               </tr>
               <tr>
-                <td>Status-LED Schalter</td>
-                <td><code>${this.box.entities.status_led || "Nicht gefunden"}</code></td>
+                <td>Status LED Switch</td>
+                <td><code>${this.box.entities.status_led || "—"}</code></td>
               </tr>
             </tbody>
           </table>
@@ -406,10 +407,10 @@ export class TonieESPBoxDetailView extends LitElement {
 
         <div class="actions-row">
           <button class="btn btn-back" @click=${this._onBack}>
-            Abbrechen
+            ${localize("common.cancel", this.lang)}
           </button>
           <button class="btn btn-save" @click=${this._onSave}>
-            Einstellungen speichern
+            ${localize("common.save", this.lang)}
           </button>
         </div>
       </div>

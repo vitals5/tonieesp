@@ -1,10 +1,12 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { MediaSearchResult } from "../types";
+import { localize } from "../localize";
 
 @customElement("tonieesp-media-item-card")
 export class TonieESPMediaItemCard extends LitElement {
   @property({ type: Object }) item!: MediaSearchResult;
+  @property({ type: String }) lang = "de";
 
   static styles = css`
     :host {
@@ -116,7 +118,7 @@ export class TonieESPMediaItemCard extends LitElement {
             ${this.item.artist ? ` • ${this.item.artist}` : ""}
           </div>
         </div>
-        <button class="btn-select" @click=${this._onSelect}>Auswählen</button>
+        <button class="btn-select" @click=${this._onSelect}>${localize("browser.select_btn", this.lang)}</button>
       </div>
     `;
   }

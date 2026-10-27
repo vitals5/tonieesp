@@ -5,7 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from homeassistant.components import frontend
+from homeassistant.components import frontend, panel_custom
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
@@ -41,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Register WebSocket API
         async_register_websocket_api(hass)
 
-        # Register frontend static path and side panel
+        # Register frontend static path and custom side panel
         await _async_register_frontend(hass)
 
     # Register this Toniebox instance
@@ -80,37 +81,63 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:
     """Register frontend JavaScript resource and Home Assistant sidebar panel."""
-    # Look for compiled frontend in custom_components/tonieesp/frontend/tonieesp-panel.js
+    if hass.data[DOMAIN].get("frontend_registered") or (
+        frontend.DATA_PANELS in hass.data
+        and FRONTEND_URL_PATH in hass.data[frontend.DATA_PANELS]
+    ):
+        return
+
     frontend_dir = Path(__file__).parent / "frontend"
     frontend_js = frontend_dir / "tonieesp-panel.js"
 
-    # Register static path in HTTP server
-    if hasattr(hass, "http") and hasattr(hass.http, "register_static_path"):
-        try:
-            hass.http.register_static_path(
-                FRONTEND_STATIC_PATH,
-                str(frontend_js),
-                cache_headers=False,
-            )
-        except Exception as err:
-            _LOGGER.debug("Static path registration result: %s", err)
+    if not frontend_js.exists():
+        _LOGGER.error("TonieESP frontend file not found at %s", frontend_js)
+        return
 
-    # Register sidebar panel
+    # 1. Register static path in HTTP server (both modern async and legacy fallback)
+    if hasattr(hass, "http"):
+        if hasattr(hass.http, "async_register_static_paths"):
+            try:
+                await hass.http.async_register_static_paths(
+                    [
+                        StaticPathConfig(
+                            url_path=FRONTEND_STATIC_PATH,
+                            path=str(frontend_js),
+                            cache_headers=False,
+                        )
+                    ]
+                )
+                _LOGGER.debug("Registered static path %s -> %s", FRONTEND_STATIC_PATH, frontend_js)
+            except Exception as err:
+                _LOGGER.warning("Could not register static path via async_register_static_paths: %s", err)
+        elif hasattr(hass.http, "register_static_path"):
+            try:
+                hass.http.register_static_path(
+                    FRONTEND_STATIC_PATH,
+                    str(frontend_js),
+                    cache_headers=False,
+                )
+            except Exception as err:
+                _LOGGER.debug("Static path registration result: %s", err)
+
+    # 2. Register custom panel using panel_custom
     try:
-        frontend.async_register_built_in_panel(
-            hass,
-            component_name="custom",
+        await panel_custom.async_register_panel(
+            hass=hass,
+            frontend_url_path=FRONTEND_URL_PATH,
+            webcomponent_name="tonieesp-panel",
             sidebar_title=FRONTEND_TITLE,
             sidebar_icon=FRONTEND_ICON,
-            frontend_url_path=FRONTEND_URL_PATH,
-            config={
-                "_panel_custom": {
-                    "name": "tonieesp-panel",
-                    "module_url": FRONTEND_STATIC_PATH,
-                }
-            },
+            module_url=f"{FRONTEND_STATIC_PATH}?v=1.0.0",
             require_admin=False,
         )
-        _LOGGER.info("Registered TonieESP sidebar panel at /%s", FRONTEND_URL_PATH)
+        hass.data[DOMAIN]["frontend_registered"] = True
+        _LOGGER.info("Registered TonieESP sidebar custom panel at /%s", FRONTEND_URL_PATH)
+    except ValueError as err:
+        if "Overwriting panel" in str(err):
+            hass.data[DOMAIN]["frontend_registered"] = True
+            _LOGGER.debug("TonieESP sidebar panel already registered: %s", err)
+        else:
+            _LOGGER.error("ValueError registering TonieESP sidebar panel: %s", err)
     except Exception as err:
-        _LOGGER.error("Failed to register TonieESP sidebar panel: %s", err)
+        _LOGGER.error("Failed to register TonieESP sidebar panel via panel_custom: %s", err)

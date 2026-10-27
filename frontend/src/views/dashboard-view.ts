@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { NFCTag, TonieBox } from "../types";
+import { localize } from "../localize";
 import "../components/toniebox-card";
 
 @customElement("tonieesp-dashboard-view")
@@ -88,27 +89,27 @@ export class TonieESPDashboardView extends LitElement {
 
     return html`
       <div class="header-section">
-        <h1 class="title">TonieESP Dashboard</h1>
+        <h1 class="title">${localize("dashboard.title", this.lang)}</h1>
         <p class="subtitle">
-          Zentrale Verwaltung und Live-Status aller Tonieboxen
+          ${localize("dashboard.subtitle", this.lang)}
         </p>
 
         <div class="stats-row">
           <div class="stat-card">
             <span class="stat-value">${this.boxes.length}</span>
-            <span class="stat-label">Tonieboxen gesamt</span>
+            <span class="stat-label">${localize("dashboard.total_boxes", this.lang)}</span>
           </div>
           <div class="stat-card">
             <span class="stat-value">${onlineCount}</span>
-            <span class="stat-label">Online</span>
+            <span class="stat-label">${localize("dashboard.online", this.lang)}</span>
           </div>
           <div class="stat-card">
             <span class="stat-value">${playingCount}</span>
-            <span class="stat-label">Aktive Wiedergaben</span>
+            <span class="stat-label">${localize("dashboard.active_playbacks", this.lang)}</span>
           </div>
           <div class="stat-card">
             <span class="stat-value">${this.tags.length}</span>
-            <span class="stat-label">NFC-Figuren in Bibliothek</span>
+            <span class="stat-label">${localize("dashboard.tags_in_library", this.lang)}</span>
           </div>
         </div>
       </div>
@@ -117,10 +118,9 @@ export class TonieESPDashboardView extends LitElement {
         ? html`
             <div class="empty-state">
               <div class="empty-icon">📻</div>
-              <h3>Keine Tonieboxen eingerichtet</h3>
+              <h3>${localize("dashboard.no_boxes", this.lang)}</h3>
               <p>
-                Richte deine Toniebox in Home Assistant über Einstellungen >
-                Geräte & Dienste > Integration hinzufügen ein.
+                ${localize("dashboard.add_box_hint", this.lang)}
               </p>
             </div>
           `

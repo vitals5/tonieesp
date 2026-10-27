@@ -3,10 +3,10 @@
     "step": {
       "user": {
         "title": "TonieESP – Add Toniebox",
-        "description": "Select the ESPHome Toniebox to manage via TonieESP.",
+        "description": "Select your ESPHome Toniebox. You can search by device name.",
         "data": {
           "esphome_device_id": "ESPHome Device",
-          "name": "Toniebox Name",
+          "name": "Display Name (optional)",
           "music_assistant_player": "Music Assistant Player (optional)"
         }
       }

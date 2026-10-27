@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/logo.png" alt="TonieESP" width="460">
+</p>
+
 # TonieESP 📻
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
@@ -5,13 +9,13 @@
 [![CI Tests](https://github.com/vitals5/tonieesp/actions/workflows/test.yml/badge.svg)](https://github.com/vitals5/tonieesp/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**TonieESP** ist eine übergeordnete Home-Assistant-Custom-Integration mit eigenem grafischen Seitenpanel, zentraler NFC-Figurenverwaltung und nativer Music-Assistant-Anbindung für ESPHome-basierte Tonieboxen (basierend auf der Firmware von [chunckus-aurelius/TonieBox-ESPhome](https://github.com/chunckus-aurelius/TonieBox-ESPhome)).
+**TonieESP** is an overarching Home Assistant custom integration featuring a dedicated sidepanel, global NFC figure management, and native [Music Assistant](https://music-assistant.io/) integration for ESPHome-based Tonieboxes (based on the firmware by [chunckus-aurelius/TonieBox-ESPhome](https://github.com/chunckus-aurelius/TonieBox-ESPhome)).
 
 ---
 
-## 🎯 Motivation & Architektur
+## 🎯 Motivation & Architecture
 
-ESPHome steuert die Hardware (NFC-Transceiver, DAC/Lautsprecher, LIS3DH-Beschleunigungssensor, Tasten, Akku). TonieESP ist **keine** zweite ESPHome-Integration, sondern die übergeordnete Verwaltungsschicht:
+ESPHome manages hardware drivers (NFC transceiver, DAC/speaker, LIS3DH accelerometer, ear buttons, and battery monitoring). TonieESP is **not** a redundant ESPHome integration; it serves as the supervisory orchestration and management layer that seamlessly binds ESPHome, Home Assistant, and Music Assistant together:
 
 ```
                       ┌──────────────────────────────────────┐
@@ -22,123 +26,136 @@ ESPHome steuert die Hardware (NFC-Transceiver, DAC/Lautsprecher, LIS3DH-Beschleu
                    │                                           │
        ┌───────────▼───────────┐                   ┌───────────▼───────────┐
        │   ESPHome Integration │                   │    Music Assistant    │
-       │ (Hardware, Sensoren,  │                   │  (Streaming, Queues,  │
-       │  tag_scanned, Gesten) │                   │   Katalog, Provider)  │
+       │ (Hardware, Sensors,   │                   │ (Streaming, Queues,   │
+       │  tag_scanned, Gestures│                   │  Catalog, Providers)  │
        └───────────▲───────────┘                   └───────────▲───────────┘
                    │                                           │
                    └─────────────────────┬─────────────────────┘
                                          │
                             ┌────────────▼────────────┐
                             │        TonieESP         │
-                            │  (Zentrale Verwaltung,  │
-                            │   NFC-Bibliothek,       │
-                            │   Resume & Gesten,      │
-                            │   Lit-Seitenpanel)      │
+                            │  (Central Management,   │
+                            │   Global NFC Library,   │
+                            │   Resume & Gestures,    │
+                            │   Lit Web Sidepanel)    │
                             └─────────────────────────┘
 ```
 
-### Die wesentliche Trennung
-- **Gerätebezogen (Config Entry):** Jede Toniebox besitzt eine eigene Instanz, eigene Lautstärkebegrenzung, Gestenzuordnung und Wiedergabestatus.
-- **Global zentral (`.storage/tonieesp.tags`):** Alle NFC-Figuren (UID, Name, Bild, Playlist, Resume-Optionen) werden integrationsweit gespeichert. Eine Figur muss nur **einmal** eingerichtet werden und funktioniert sofort auf allen Boxen im Haushalt.
-- **Geräte-Overrides:** Optional kann dieselbe Figur im Kinderzimmer ein Hörspiel und im Wohnzimmer eine Musik-Playlist starten.
-- **Zentraler Wiedergabefortschritt:** Ein Hörbuch kann im Kinderzimmer pausiert und später im Wohnzimmer an derselben Stelle fortgesetzt werden.
+### Key Architectural Separation
+
+- **Device-Specific (`ConfigEntry`):** Each Toniebox has its own entry, volume ceiling, gesture mappings, and independent playback state.
+- **Global NFC Management (`.storage/tonieesp.tags`):** All NFC figures (UID, friendly name, cover artwork, media item, and resume preferences) are stored integration-wide. A figure is configured once and works immediately across every Toniebox in your home.
+- **Device-Specific Overrides:** Optionally assign custom playlists to specific boxes (e.g. playing bedtime lullabies in the nursery and energetic children's songs in the living room using the same physical figure).
+- **Synchronized Playback Progress:** Audiobook progress is tracked persistently, allowing a child to pause a story in one room and continue at the exact second on a different Toniebox.
 
 ---
 
-## ✨ Hauptfunktionen
+## ✨ Features
 
-- 📻 **Multi-Box-Unterstützung:** Verwalte beliebig viele Tonieboxen unabhängig voneinander.
-- 🧸 **Zentrale NFC-Bibliothek:** Globale Verwaltung aller Figuren mit Suche, Filterung, Cover-Bildern und JSON-Import/Export.
-- ⏱ **Intelligente Resume-Logik:**
-  - *Kurzzeit-Pause:* Figur wird abgenommen ➔ Toniebox pausiert. Figur wird wieder aufgesetzt ➔ Wiedergabe setzt nahtlos fort.
-  - *Hörbuch-Fortschritt:* Merkt sich die Position langfristig im persistenten Speicher – auch über mehrere Tage und boxübergreifend.
-- ⚡ **Scan-Lernmodus:** Klicke im Panel auf „Figur scannen“, stelle eine Figur auf eine beliebige Toniebox und die UID wird automatisch übernommen.
-- 🎛 **Gesten-Steuerung:** Konfigurierbare Aktionen für Klopfer (links/rechts) und Neigen (Vorspulen/Zurückspulen mit relativer Zeitkorrektur).
-- 🔍 **Music-Assistant-Browser:** Durchsuche Playlists, Alben, Hörbücher, Titel und Radiosender direkt im Panel.
-- 🛡 **Robuste Entitätsauflösung:** Arbeitet mit stabilen Geräte-IDs der Device & Entity Registry. Benutzer können Entitäten in HA jederzeit umbenennen, ohne dass Verknüpfungen abbrechen.
-- 🎨 **Reaktives Lit-Webpanel:** Vollständig lokal ohne externe CDN-Abhängigkeiten, unterstützt Home-Assistant-Themes (Dark/Light Mode) und mobile Bildschirme.
+- 📻 **Multi-Box Fleet Management:** Manage multiple Tonieboxes independently with real-time status tracking.
+- 🧸 **Centralized NFC Tag Library:** Comprehensive catalog with instant search, media type filters (playlists, albums, audiobooks, tracks, radio stations), and JSON backup export/import.
+- ⏱ **Intelligent Resume Engine:**
+  - *Short-term removal:* Removing a figure pauses playback instantly; placing it back resumes without delay.
+  - *Long-term audiobook memory:* Persists playback position across days, restarts, and across different Tonieboxes.
+- ⚡ **Scan Learning Mode:** Click "Scan to Learn", place any figure on any Toniebox, and the UID is automatically captured and opened in the tag editor.
+- 🎛 **Gesture Controls:** Full mapping for side taps (left/right ear) and tilt gestures (smooth relative forward/rewind seeking).
+- 🔍 **Integrated Media Browser:** Search Music Assistant directly from the sidepanel and assign albums or playlists with a single click.
+- 🌐 **Multi-Language Support:** Fully localized in English and German with automatic language detection and a header toggle switch.
+- 🛡 **Stable Registry Resolution:** Uses persistent Device Registry IDs rather than brittle entity naming conventions. Entities can be renamed freely in Home Assistant without breaking links.
+- 🎨 **Responsive Lit Sidepanel:** Zero CDN dependencies, natively supports Home Assistant Light/Dark modes and mobile viewports.
 
 ---
 
 ## 🚀 Installation
 
-### Option 1: HACS (Empfohlen)
+### Option 1: HACS (Recommended)
 
-1. Öffne **HACS** in Home Assistant.
-2. Gehe auf **Integrationen** ➔ Drei Punkte oben rechts ➔ **Benutzerdefinierte Repositories**.
-3. Gib die URL ein: `https://github.com/vitals5/tonieesp`
-4. Kategorie: **Integration**.
-5. Klicke auf **Installieren** und starte Home Assistant neu.
+Click the button below to add the repository directly to your Home Assistant instance:
 
-### Option 2: Manuell
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=vitals5&repository=tonieesp&category=integration)
 
-1. Lade das Release-Archiv `tonieesp.zip` herunter.
-2. Entpacke den Ordner `custom_components/tonieesp` in dein Home-Assistant-Verzeichnis unter `<config>/custom_components/tonieesp`.
-3. Starte Home Assistant neu.
+Or add it manually in HACS:
 
----
+1. Open **HACS** in your Home Assistant sidebar.
+2. Click the three dots in the top right corner and select **Custom repositories**.
+3. Enter repository URL: `https://github.com/vitals5/tonieesp`
+4. Select category: **Integration**.
+5. Click **Add**, find **TonieESP** in the list, and click **Download**.
+6. Restart Home Assistant.
 
-## ⚙️ Einrichtung
+### Option 2: Manual Installation
 
-1. Stelle sicher, dass deine Toniebox über ESPHome in Home Assistant eingebunden ist.
-2. Gehe in Home Assistant zu **Einstellungen** ➔ **Geräte & Dienste** ➔ **Integration hinzufügen**.
-3. Suche nach **TonieESP**.
-4. Wähle deine ESPHome-Toniebox aus der Liste aus und vergib optional einen benutzerfreundlichen Namen.
-5. In der linken Home-Assistant-Seitenleiste erscheint sofort das **TonieESP**-Panel!
+1. Download the latest release from the [Releases](https://github.com/vitals5/tonieesp/releases) page.
+2. Copy the `custom_components/tonieesp` folder into your Home Assistant directory under `<config>/custom_components/tonieesp`.
+3. Restart Home Assistant.
 
 ---
 
-## 📋 Kompatibilität mit der Firmware
+## ⚙️ Initial Setup
 
-TonieESP ist zu **100% kompatibel** mit der Firmware von [chunckus-aurelius/TonieBox-ESPhome](https://github.com/chunckus-aurelius/TonieBox-ESPhome). Es sind **keine Änderungen am ESPHome-YAML oder am Code der Box notwendig**:
+1. Verify that your Toniebox is online and connected via the **ESPHome** integration in Home Assistant.
+2. In Home Assistant, navigate to **Settings** ➔ **Devices & Services** ➔ **Add Integration**.
+3. Search for **TonieESP**.
+4. The setup dialog features **live search with pre-filtered ESPHome devices**. Select your Toniebox from the dropdown and click submit.
+5. The **TonieESP** sidepanel will immediately appear in your Home Assistant sidebar!
 
-| Firmware-Ereignis | TonieESP-Verarbeitung |
+---
+
+## 📋 Firmware Compatibility
+
+TonieESP is **100% plug-and-play compatible** with the open-source firmware by [chunckus-aurelius/TonieBox-ESPhome](https://github.com/chunckus-aurelius/TonieBox-ESPhome). **No modifications to your ESPHome configuration or box firmware are required**:
+
+| Firmware Event / Entity | TonieESP Handling |
 | :--- | :--- |
-| `tag_scanned` | Identifiziert Box und normalisierte UID (16 Hex-Zeichen), startet zugeordnetes Medium. |
-| `sensor.*_nfc_tag_uid` ➔ `"none"` | Erkennt das Abheben der Figur und pausiert die Wiedergabe mit Positions-Snapshot. |
-| `esphome.tonie_tap` | Filtert Achse `y` (Seitenschlag); `side: pos` (links) ➔ Zurück, `side: neg` (rechts) ➔ Weiter. |
-| `esphome.tonie_tilt` | `side: pos` ➔ Zurückspulen (-10s), `side: neg` ➔ Vorspulen (+10s). |
+| `tag_scanned` | Identifies box and normalized 16-hex UID; starts mapped media via Music Assistant. |
+| `sensor.*_nfc_tag_uid` ➔ `"none"` | Reliably detects figure removal and pauses playback with position snapshot. |
+| `esphome.tonie_tap` | Filters axis `y`; `side: pos` (left ear) ➔ previous track, `side: neg` (right ear) ➔ next track. |
+| `esphome.tonie_tilt` | Filters axis `x`; `side: pos` ➔ rewind (-10s), `side: neg` ➔ fast-forward (+10s). |
 
 ---
 
-## 🖥️ Web-Seitenpanel
+## 🖥️ Web Sidepanel Views
 
-Das Panel bietet sieben dedizierte Ansichten:
+The custom Lit web component provides 7 dedicated management views:
 
-1. **Dashboard:** Live-Kacheln aller Boxen mit Online-Status, Batterie %, Ladeanzeige, aktueller Figur, Cover-Art, Titel und Lautstärkeregler.
-2. **NFC-Figuren:** Bibliotheksansicht aller Tags mit Suchleiste, Typ-Filtern (Playlist, Album, Hörbuch, Radio) und „Auf Box abspielen“-Schnellstart.
-3. **Figuren-Editor:** Bearbeite Namen, Cover-URLs, Medien-IDs, Resume- und Shuffle-Optionen sowie gerätespezifische Overrides.
-4. **Scan-Lernmodus:** Erkennt neu aufgesetzte Figuren live und öffnet direkt das Einrichtungsformular.
-5. **Music-Assistant-Mediathek:** Durchsuche den Music-Assistant-Katalog und übernimm Alben oder Playlists mit einem Klick.
-6. **Einstellungen & Backups:** JSON-Export und Import deiner gesamten Figurensammlung.
-7. **Diagnose & Logs:** Echtzeit-Ereignisstrom für Scans, Gesten und Statusänderungen.
+1. **Dashboard:** Live cards for all configured Tonieboxes with battery level, charging indicators, placed figure artwork, now-playing title, and volume slider.
+2. **NFC Tags:** Global library with search-as-you-type, filter chips, and "Play on Box" quick controls.
+3. **Tag Editor:** Configure figure metadata, cover images, Music Assistant URI, resume behavior, and device-specific overrides.
+4. **Scan Learning:** Modal dialog that captures new tags directly when placed onto any box.
+5. **Media Library:** Direct catalog search against Music Assistant for quick assignment.
+6. **Settings & Backup:** Download and upload JSON snapshots of your entire tag collection.
+7. **Diagnostics & Logs:** Live event feed for scans, gestures, and playback changes.
 
 ---
 
-## 🛠 Entwicklung & Tests
+## 🛠 Development & Testing
 
-Das Repository enthält eine vollständige Test-Suite mit `pytest`:
+This project includes a comprehensive `pytest` test suite:
 
 ```bash
-# Virtuelle Umgebung erstellen
+# Create and activate virtual environment
 uv venv
 source .venv/bin/activate
 
-# Abhängigkeiten installieren
+# Install dependencies
 uv pip install pytest pytest-asyncio pytest-cov ruff homeassistant
 
-# Tests ausführen
+# Run tests
 pytest tests -v --cov=custom_components.tonieesp
 
-# Frontend bauen
+# Run code style checks
+ruff check custom_components/tonieesp tests
+
+# Build frontend
 cd frontend
 npm install
+npm run typecheck
 npm run build
 ```
 
 ---
 
-## 📄 Lizenz
+## 📄 License
 
-Dieses Projekt ist unter der [MIT-Lizenz](LICENSE) lizenziert.
-Attribution: Basiert auf Erkenntnissen und Schnittstellen des Projekts [TonieBox-ESPhome](https://github.com/chunckus-aurelius/TonieBox-ESPhome) von `@chunckus-aurelius`.
+This project is licensed under the [MIT License](LICENSE).
+Attribution: Built upon architectural insights and protocols from [TonieBox-ESPhome](https://github.com/chunckus-aurelius/TonieBox-ESPhome) by `@chunckus-aurelius`.

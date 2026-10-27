@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { DeviceOverride, MediaSearchResult, NFCTag, TonieBox } from "../types";
+import { localize } from "../localize";
 
 @customElement("tonieesp-tag-editor-view")
 export class TonieESPTagEditorView extends LitElement {
@@ -283,7 +284,7 @@ export class TonieESPTagEditorView extends LitElement {
 
   private _onSave() {
     if (!this._uid.trim()) {
-      alert("Bitte gib eine gültige NFC UID an.");
+      alert(this.lang.startsWith("en") ? "Please provide a valid NFC UID." : "Bitte gib eine gültige NFC UID an.");
       return;
     }
 
@@ -352,7 +353,9 @@ export class TonieESPTagEditorView extends LitElement {
       <div class="editor-card">
         <div class="title-row">
           <h2 class="title">
-            ${this.tag ? "NFC-Figur bearbeiten" : "Neue NFC-Figur anlegen"}
+            ${this.tag
+              ? localize("editor.title_edit", this.lang)
+              : localize("editor.title_new", this.lang)}
           </h2>
         </div>
 
@@ -361,13 +364,13 @@ export class TonieESPTagEditorView extends LitElement {
             class="tab-btn ${this._activeTab === "global" ? "active" : ""}"
             @click=${() => (this._activeTab = "global")}
           >
-            Globale Einstellungen
+            ${localize("editor.tab_global", this.lang)}
           </button>
           <button
             class="tab-btn ${this._activeTab === "overrides" ? "active" : ""}"
             @click=${() => (this._activeTab = "overrides")}
           >
-            Geräte-Overrides (${Object.keys(this._overrides).length})
+            ${localize("editor.tab_overrides", this.lang)} (${Object.keys(this._overrides).length})
           </button>
         </div>
 
@@ -376,11 +379,11 @@ export class TonieESPTagEditorView extends LitElement {
               <div class="form-grid">
                 <!-- UID -->
                 <div class="form-group full-width">
-                  <label>NFC Tag UID (16 Hex-Zeichen)</label>
+                  <label>${localize("editor.uid", this.lang)}</label>
                   <div class="uid-group">
                     <input
                       type="text"
-                      placeholder="z.B. E004015023AABBCC"
+                      placeholder=${localize("editor.uid_hint", this.lang)}
                       .value=${this._uid}
                       @input=${(e: Event) =>
                         (this._uid = (e.target as HTMLInputElement).value)}
@@ -395,17 +398,17 @@ export class TonieESPTagEditorView extends LitElement {
                           })
                         )}
                     >
-                      ⚡ Jetzt scannen
+                      ${localize("tags.scan_learn", this.lang)}
                     </button>
                   </div>
                 </div>
 
                 <!-- Name & Description -->
                 <div class="form-group">
-                  <label>Name der Figur</label>
+                  <label>${localize("editor.name", this.lang)}</label>
                   <input
                     type="text"
-                    placeholder="z.B. Die drei ??? Folge 1"
+                    placeholder="z.B. Die drei ???"
                     .value=${this._name}
                     @input=${(e: Event) =>
                       (this._name = (e.target as HTMLInputElement).value)}
@@ -413,7 +416,7 @@ export class TonieESPTagEditorView extends LitElement {
                 </div>
 
                 <div class="form-group">
-                  <label>Cover-Bild URL</label>
+                  <label>${localize("editor.image", this.lang)}</label>
                   <input
                     type="text"
                     placeholder="https://..."
@@ -424,10 +427,10 @@ export class TonieESPTagEditorView extends LitElement {
                 </div>
 
                 <div class="form-group full-width">
-                  <label>Beschreibung (optional)</label>
+                  <label>${localize("editor.desc", this.lang)}</label>
                   <textarea
                     rows="2"
-                    placeholder="Zusätzliche Notizen zur Figur..."
+                    placeholder="Notizen..."
                     .value=${this._description}
                     @input=${(e: Event) =>
                       (this._description = (e.target as HTMLInputElement).value)}
@@ -436,25 +439,26 @@ export class TonieESPTagEditorView extends LitElement {
 
                 <!-- Media Selection -->
                 <div class="form-group">
-                  <label>Medientyp</label>
+                  <label>${localize("editor.media_type", this.lang)}</label>
                   <select
                     .value=${this._mediaType}
                     @change=${(e: Event) =>
                       (this._mediaType = (e.target as HTMLSelectElement).value)}
                   >
-                    <option value="playlist">Playlist</option>
-                    <option value="album">Album</option>
-                    <option value="audiobook">Hörbuch</option>
-                    <option value="track">Einzelner Titel</option>
-                    <option value="radio">Radiosender</option>
+                    <option value="playlist">${localize("tags.filter_playlist", this.lang)}</option>
+                    <option value="album">${localize("tags.filter_album", this.lang)}</option>
+                    <option value="audiobook">${localize("tags.filter_audiobook", this.lang)}</option>
+                    <option value="track">${localize("tags.filter_track", this.lang)}</option>
+                    <option value="radio">${localize("tags.filter_radio", this.lang)}</option>
+                    <option value="podcast">${localize("tags.filter_podcast", this.lang)}</option>
                   </select>
                 </div>
 
                 <div class="form-group">
-                  <label>Titel / Playlist Name</label>
+                  <label>${localize("editor.media_title", this.lang)}</label>
                   <input
                     type="text"
-                    placeholder="Name in Music Assistant"
+                    placeholder="Titel..."
                     .value=${this._mediaTitle}
                     @input=${(e: Event) =>
                       (this._mediaTitle = (e.target as HTMLInputElement).value)}
@@ -462,11 +466,11 @@ export class TonieESPTagEditorView extends LitElement {
                 </div>
 
                 <div class="form-group full-width">
-                  <label>Music Assistant Medien-ID / URI</label>
+                  <label>${localize("editor.media_id", this.lang)}</label>
                   <div class="media-search-group">
                     <input
                       type="text"
-                      placeholder="z.B. spotify://playlist/..."
+                      placeholder="spotify://playlist/..."
                       .value=${this._mediaId}
                       @input=${(e: Event) =>
                         (this._mediaId = (e.target as HTMLInputElement).value)}
@@ -481,14 +485,14 @@ export class TonieESPTagEditorView extends LitElement {
                           })
                         )}
                     >
-                      🔍 Mediathek durchsuchen
+                      ${localize("editor.browse_ma", this.lang)}
                     </button>
                   </div>
                 </div>
 
                 <!-- Playback Settings -->
                 <div class="form-group">
-                  <label>Wiedergabeeinstellungen</label>
+                  <label>${localize("editor.settings", this.lang)}</label>
                   <div class="checkbox-row">
                     <input
                       type="checkbox"
@@ -498,7 +502,7 @@ export class TonieESPTagEditorView extends LitElement {
                         (this._resume = (e.target as HTMLInputElement).checked)}
                     />
                     <label for="cb-resume"
-                      >Fortschritt merken (Resume für Hörbücher)</label
+                      >${localize("editor.resume", this.lang)}</label
                     >
                   </div>
                   <div class="checkbox-row">
@@ -509,20 +513,20 @@ export class TonieESPTagEditorView extends LitElement {
                       @change=${(e: Event) =>
                         (this._shuffle = (e.target as HTMLInputElement).checked)}
                     />
-                    <label for="cb-shuffle">Zufallswiedergabe (Shuffle)</label>
+                    <label for="cb-shuffle">${localize("editor.shuffle", this.lang)}</label>
                   </div>
                 </div>
 
                 <div class="form-group">
-                  <label>Wiederholen (Repeat)</label>
+                  <label>${localize("editor.repeat", this.lang)}</label>
                   <select
                     .value=${this._repeat}
                     @change=${(e: Event) =>
                       (this._repeat = (e.target as HTMLSelectElement).value)}
                   >
-                    <option value="off">Aus</option>
-                    <option value="one">Titel wiederholen</option>
-                    <option value="all">Playlist wiederholen</option>
+                    <option value="off">${localize("editor.repeat_off", this.lang)}</option>
+                    <option value="one">${localize("editor.repeat_one", this.lang)}</option>
+                    <option value="all">${localize("editor.repeat_all", this.lang)}</option>
                   </select>
                 </div>
               </div>
@@ -530,9 +534,7 @@ export class TonieESPTagEditorView extends LitElement {
           : html`
               <!-- Overrides Tab -->
               <div class="overrides-header">
-                Hier kannst du festlegen, dass diese Figur auf einer bestimmten
-                Toniebox ein anderes Hörspiel oder eine andere Playlist
-                abspielt.
+                ${localize("editor.overrides_hint", this.lang)}
               </div>
 
               <div style="display: flex; gap: 8px; margin-bottom: 16px;">
@@ -553,14 +555,15 @@ export class TonieESPTagEditorView extends LitElement {
                   style="white-space: nowrap;"
                   @click=${this._addOverride}
                 >
-                  + Override für Box anlegen
+                  ${localize("editor.add_override", this.lang)}
                 </button>
               </div>
 
               ${Object.keys(this._overrides).length === 0
                 ? html`<div style="text-align: center; color: #888; padding: 20px;">
-                    Keine Overrides konfiguriert. Diese Figur verhält sich auf
-                    allen Boxen gleich.
+                    ${this.lang.startsWith("en")
+                      ? "No overrides configured. This figure behaves the same on all boxes."
+                      : "Keine Overrides konfiguriert. Diese Figur verhält sich auf allen Boxen gleich."}
                   </div>`
                 : Object.entries(this._overrides).map(([boxId, override]) => {
                     const box = this.boxes.find((b) => b.id === boxId);
@@ -572,14 +575,14 @@ export class TonieESPTagEditorView extends LitElement {
                             style="background: transparent; border: none; color: #d32f2f; cursor: pointer;"
                             @click=${() => this._removeOverride(boxId)}
                           >
-                            Entfernen ✕
+                            ${localize("editor.delete_override", this.lang)} ✕
                           </button>
                         </div>
                         <div class="form-group">
-                          <label>Abweichende Medien-ID für diese Box</label>
+                          <label>${localize("editor.media_id", this.lang)}</label>
                           <input
                             type="text"
-                            placeholder="z.B. playlist-id oder name"
+                            placeholder="playlist-id"
                             .value=${override.media?.media_id || ""}
                             @input=${(e: Event) => {
                               const val = (e.target as HTMLInputElement).value;
@@ -600,10 +603,10 @@ export class TonieESPTagEditorView extends LitElement {
 
         <div class="footer-actions">
           <button class="btn btn-cancel" @click=${this._onCancel}>
-            Abbrechen
+            ${localize("common.cancel", this.lang)}
           </button>
           <button class="btn btn-save" @click=${this._onSave}>
-            Figur speichern
+            ${localize("common.save", this.lang)}
           </button>
         </div>
       </div>

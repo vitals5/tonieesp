@@ -1,11 +1,13 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { NFCTag, TonieBox } from "../types";
+import { localize } from "../localize";
 
 @customElement("tonieesp-tag-card")
 export class TonieESPTagCard extends LitElement {
   @property({ type: Object }) tag!: NFCTag;
   @property({ type: Array }) boxes: TonieBox[] = [];
+  @property({ type: String }) lang = "de";
 
   static styles = css`
     :host {
@@ -208,17 +210,17 @@ export class TonieESPTagCard extends LitElement {
             <div class="name">${this.tag.name}</div>
             <span class="uid-pill">${this.tag.uid}</span>
             <div class="media-info">
-              🎵 ${this.tag.media.title || this.tag.media.media_id || "Kein Medium zugewiesen"}
+              🎵 ${this.tag.media.title || this.tag.media.media_id || localize("tags.no_media", this.lang)}
             </div>
           </div>
         </div>
 
         <div class="badges-row">
           <span class="badge">${this.tag.media.media_type || "playlist"}</span>
-          ${this.tag.settings.resume ? html`<span class="badge">⏱ Resume</span>` : ""}
-          ${this.tag.settings.shuffle ? html`<span class="badge">🔀 Shuffle</span>` : ""}
+          ${this.tag.settings.resume ? html`<span class="badge">${localize("tags.resume_badge", this.lang)}</span>` : ""}
+          ${this.tag.settings.shuffle ? html`<span class="badge">${localize("tags.shuffle_badge", this.lang)}</span>` : ""}
           ${overrideCount > 0
-            ? html`<span class="badge badge-override">⚡ ${overrideCount} Override(s)</span>`
+            ? html`<span class="badge badge-override">${localize("tags.overrides_badge", this.lang, { count: overrideCount })}</span>`
             : ""}
         </div>
 
@@ -229,12 +231,12 @@ export class TonieESPTagCard extends LitElement {
                 (b) => html`<option value="${b.id}">${b.name}</option>`
               )}
             </select>
-            <button class="btn-play-action" @click=${this._onPlayOnBox}>▶ Play</button>
+            <button class="btn-play-action" @click=${this._onPlayOnBox}>${localize("tags.play_on", this.lang)}</button>
           </div>
 
           <div>
-            <button class="btn-icon" title="Bearbeiten" @click=${this._onEdit}>✏️</button>
-            <button class="btn-icon btn-delete" title="Löschen" @click=${this._onDelete}>🗑️</button>
+            <button class="btn-icon" title=${localize("tags.edit", this.lang)} @click=${this._onEdit}>✏️</button>
+            <button class="btn-icon btn-delete" title=${localize("tags.delete", this.lang)} @click=${this._onDelete}>🗑️</button>
           </div>
         </div>
       </div>

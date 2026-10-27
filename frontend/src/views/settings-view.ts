@@ -1,6 +1,7 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { DiagnosticsData } from "../types";
+import { localize } from "../localize";
 
 @customElement("tonieesp-settings-view")
 export class TonieESPSettingsView extends LitElement {
@@ -138,9 +139,9 @@ export class TonieESPSettingsView extends LitElement {
       a.download = `tonieesp-tags-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      this._showMessage("NFC-Bibliothek erfolgreich exportiert!", false);
+      this._showMessage(localize("common.save_success", this.lang), false);
     } catch (err: any) {
-      this._showMessage(`Export fehlgeschlagen: ${err?.message || err}`, true);
+      this._showMessage(localize("common.error", this.lang, { error: err?.message || err }), true);
     }
   }
 
@@ -159,16 +160,18 @@ export class TonieESPSettingsView extends LitElement {
       try {
         const json = JSON.parse(reader.result as string);
         if (!Array.isArray(json)) {
-          throw new Error("Ungültiges Dateiformat. Erwarte ein JSON-Array.");
+          throw new Error("Invalid format. Expected a JSON array.");
         }
         const res = await this.api.importTags(json, this._overwrite);
         this._showMessage(
-          `Erfolgreich importiert: ${res.count} Figuren hinzugefügt / aktualisiert.`,
+          this.lang.startsWith("en")
+            ? `Successfully imported: ${res.count} tags added / updated.`
+            : `Erfolgreich importiert: ${res.count} Figuren hinzugefügt / aktualisiert.`,
           false
         );
         this.dispatchEvent(new CustomEvent("tags-imported", { bubbles: true, composed: true }));
       } catch (err: any) {
-        this._showMessage(`Import fehlgeschlagen: ${err?.message || err}`, true);
+        this._showMessage(localize("common.error", this.lang, { error: err?.message || err }), true);
       }
     };
     reader.readAsText(file);
@@ -186,9 +189,9 @@ export class TonieESPSettingsView extends LitElement {
   render() {
     return html`
       <div class="container">
-        <h2 class="title">Einstellungen & Datensicherung</h2>
+        <h2 class="title">${localize("settings.title", this.lang)}</h2>
         <p class="subtitle">
-          Verwalte Backups, Importe und Systemdiagnose für TonieESP.
+          ${localize("settings.subtitle", this.lang)}
         </p>
 
         ${this._message
@@ -203,21 +206,20 @@ export class TonieESPSettingsView extends LitElement {
 
         <!-- Export -->
         <div class="card-block">
-          <h3 class="block-title">NFC-Figuren-Bibliothek exportieren</h3>
+          <h3 class="block-title">${localize("settings.export", this.lang)}</h3>
           <p class="block-desc">
-            Sichere deine gesamte Figurenbibliothek inklusive Namen, Cover-URLs,
-            Playlists und gerätespezifischen Overrides als JSON-Datei.
+            ${localize("settings.export_desc", this.lang)}
           </p>
           <button class="btn btn-secondary" @click=${this._exportTags}>
-            📥 JSON-Backup herunterladen
+            📥 ${localize("settings.export_btn", this.lang)}
           </button>
         </div>
 
         <!-- Import -->
         <div class="card-block">
-          <h3 class="block-title">NFC-Figuren-Bibliothek importieren</h3>
+          <h3 class="block-title">${localize("settings.import", this.lang)}</h3>
           <p class="block-desc">
-            Stelle eine gesicherte JSON-Datei wieder her.
+            ${localize("settings.import_desc", this.lang)}
           </p>
           <div class="checkbox-row">
             <input
@@ -228,7 +230,7 @@ export class TonieESPSettingsView extends LitElement {
                 (this._overwrite = (e.target as HTMLInputElement).checked)}
             />
             <label for="cb-overwrite"
-              >Bestehende UIDs überschreiben (ansonsten nur neue hinzufügen)</label
+              >${localize("settings.overwrite", this.lang)}</label
             >
           </div>
           <input
@@ -238,7 +240,7 @@ export class TonieESPSettingsView extends LitElement {
             @change=${this._onFileSelected}
           />
           <button class="btn btn-primary" @click=${this._triggerFileInput}>
-            📤 JSON hochladen & importieren
+            📤 ${localize("settings.import_btn", this.lang)}
           </button>
         </div>
 
@@ -246,10 +248,10 @@ export class TonieESPSettingsView extends LitElement {
         ${this._diagnostics
           ? html`
               <div class="card-block">
-                <h3 class="block-title">System-Diagnose</h3>
+                <h3 class="block-title">${localize("settings.diagnostics", this.lang)}</h3>
                 <p class="block-desc">
-                  Tonieboxen: <strong>${this._diagnostics.box_count}</strong> |
-                  Figuren: <strong>${this._diagnostics.tag_count}</strong> |
+                  Tonieboxes: <strong>${this._diagnostics.box_count}</strong> |
+                  Tags: <strong>${this._diagnostics.tag_count}</strong> |
                   Music Assistant:
                   <strong
                     style="color: ${this._diagnostics.music_assistant_available
@@ -257,8 +259,8 @@ export class TonieESPSettingsView extends LitElement {
                       : "#c62828"};"
                   >
                     ${this._diagnostics.music_assistant_available
-                      ? "Verbunden"
-                      : "Nicht verfügbar"}
+                      ? (this.lang.startsWith("en") ? "Connected" : "Verbunden")
+                      : (this.lang.startsWith("en") ? "Unavailable" : "Nicht verfügbar")}
                   </strong>
                 </p>
               </div>

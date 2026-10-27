@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { TonieESPWebSocketAPI } from "./api/websocket";
 import { EventLogItem, MediaSearchResult, NFCTag, TonieBox } from "./types";
+import { localize } from "./localize";
 
 // Import Views
 import "./views/dashboard-view";
@@ -17,6 +18,8 @@ export class TonieESPPanel extends LitElement {
   @property({ attribute: false }) hass: any;
   @property({ type: Boolean }) narrow = false;
   @property({ type: Object }) panel: any;
+
+  @state() private _lang = "de";
 
   @state() private _activeView:
     | "dashboard"
@@ -132,6 +135,36 @@ export class TonieESPPanel extends LitElement {
     .nav-btn.active {
       background: var(--primary-color, #03a9f4);
       color: #fff;
+    }
+
+    .lang-switch {
+      display: inline-flex;
+      background: var(--secondary-background-color, #f0f0f0);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--secondary-text-color, #666);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .lang-btn:hover {
+      color: var(--primary-text-color, #111);
+    }
+
+    .lang-btn.active {
+      background: var(--card-background-color, #ffffff);
+      color: var(--primary-color, #03a9f4);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 
     .content-area {
@@ -251,8 +284,37 @@ export class TonieESPPanel extends LitElement {
     }
   `;
 
+  connectedCallback() {
+    super.connectedCallback();
+    try {
+      const stored = localStorage.getItem("tonieesp_lang");
+      if (stored === "en" || stored === "de") {
+        this._lang = stored;
+      } else if (this.hass?.locale?.language || this.hass?.language) {
+        const haLang = (this.hass.locale?.language || this.hass.language || "").toLowerCase();
+        this._lang = haLang.startsWith("en") ? "en" : "de";
+      }
+    } catch {
+      this._lang = "de";
+    }
+  }
+
+  private _setLanguage(lang: "de" | "en") {
+    this._lang = lang;
+    try {
+      localStorage.setItem("tonieesp_lang", lang);
+    } catch {
+      // Ignore localStorage failure in iframe / private mode
+    }
+    this.requestUpdate();
+  }
+
   updated(changedProperties: Map<string, any>) {
     if (changedProperties.has("hass") && this.hass) {
+      if (!localStorage.getItem("tonieesp_lang")) {
+        const haLang = (this.hass.locale?.language || this.hass.language || "").toLowerCase();
+        this._lang = haLang.startsWith("en") ? "en" : "de";
+      }
       if (!this._api) {
         this._api = new TonieESPWebSocketAPI(this.hass);
         this._initData();
@@ -340,9 +402,9 @@ export class TonieESPPanel extends LitElement {
     if (!this._api) return;
     try {
       await this._api.controlPlayback(boxId, action, data);
-      this._addLog("playback", `Aktion '${action}' an Box gesendet`);
+      this._addLog("playback", `Action '${action}' sent to box`);
     } catch (err: any) {
-      alert(`Wiedergabefehler: ${err?.message || err}`);
+      alert(localize("common.error", this._lang, { error: err?.message || err }));
     }
   }
 
@@ -351,9 +413,9 @@ export class TonieESPPanel extends LitElement {
     if (!this._api) return;
     try {
       await this._api.controlPlayback(boxId, "play_tag", { uid: tag.uid });
-      this._addLog("playback", `Tag ${tag.name} (${tag.uid}) auf Box gestartet`);
+      this._addLog("playback", `Tag ${tag.name} (${tag.uid}) started on box`);
     } catch (err: any) {
-      alert(`Fehler beim Abspielen: ${err?.message || err}`);
+      alert(localize("common.error", this._lang, { error: err?.message || err }));
     }
   }
 
@@ -375,10 +437,10 @@ export class TonieESPPanel extends LitElement {
     try {
       const updated = await this._api.updateBoxSettings(boxId, settings);
       this._boxes = this._boxes.map((b) => (b.id === updated.id ? updated : b));
-      alert("Einstellungen erfolgreich gespeichert!");
+      alert(localize("box.save_success", this._lang));
       this._activeView = "dashboard";
     } catch (err: any) {
-      alert(`Fehler beim Speichern: ${err?.message || err}`);
+      alert(localize("common.error", this._lang, { error: err?.message || err }));
     }
   }
 
@@ -396,16 +458,16 @@ export class TonieESPPanel extends LitElement {
 
   private async _handleDeleteTag(e: CustomEvent) {
     const { tag } = e.detail;
-    if (!confirm(`Soll die Figur '${tag.name}' (${tag.uid}) wirklich gelöscht werden?`)) {
+    if (!confirm(localize("tags.confirm_delete", this._lang, { name: tag.name, uid: tag.uid }))) {
       return;
     }
     if (!this._api) return;
     try {
       await this._api.deleteTag(tag.uid);
       this._tags = this._tags.filter((t) => t.uid !== tag.uid);
-      this._addLog("tag", `Figur '${tag.name}' gelöscht`);
+      this._addLog("tag", `Tag '${tag.name}' deleted`);
     } catch (err: any) {
-      alert(`Fehler beim Löschen: ${err?.message || err}`);
+      alert(localize("common.error", this._lang, { error: err?.message || err }));
     }
   }
 
@@ -422,9 +484,9 @@ export class TonieESPPanel extends LitElement {
       }
       this._tags = [...this._tags];
       this._activeView = "tags";
-      this._addLog("tag", `Figur '${saved.name}' gespeichert`);
+      this._addLog("tag", `Tag '${saved.name}' saved`);
     } catch (err: any) {
-      alert(`Fehler beim Speichern der Figur: ${err?.message || err}`);
+      alert(localize("common.error", this._lang, { error: err?.message || err }));
     }
   }
 
@@ -477,7 +539,7 @@ export class TonieESPPanel extends LitElement {
             class="nav-btn ${this._activeView === "dashboard" ? "active" : ""}"
             @click=${() => (this._activeView = "dashboard")}
           >
-            📊 Dashboard
+            📊 ${localize("nav.dashboard", this._lang)}
           </button>
           <button
             class="nav-btn ${this._activeView === "tags" || this._activeView === "editor"
@@ -485,27 +547,44 @@ export class TonieESPPanel extends LitElement {
               : ""}"
             @click=${() => (this._activeView = "tags")}
           >
-            🧸 NFC-Figuren (${this._tags.length})
+            🧸 ${localize("nav.tags", this._lang)} (${this._tags.length})
           </button>
           <button
             class="nav-btn ${this._activeView === "browser" ? "active" : ""}"
             @click=${() => (this._activeView = "browser")}
           >
-            🎵 Mediathek
+            🎵 ${localize("nav.browser", this._lang)}
           </button>
           <button
             class="nav-btn ${this._activeView === "settings" ? "active" : ""}"
             @click=${() => (this._activeView = "settings")}
           >
-            ⚙️ Einstellungen
+            ⚙️ ${localize("nav.settings", this._lang)}
           </button>
           <button
             class="nav-btn ${this._activeView === "logs" ? "active" : ""}"
             @click=${() => (this._activeView = "logs")}
           >
-            📋 Logs
+            📋 ${localize("nav.logs", this._lang)}
           </button>
         </nav>
+
+        <div class="lang-switch">
+          <button
+            class="lang-btn ${this._lang === "de" ? "active" : ""}"
+            @click=${() => this._setLanguage("de")}
+            title="Deutsch"
+          >
+            DE
+          </button>
+          <button
+            class="lang-btn ${this._lang === "en" ? "active" : ""}"
+            @click=${() => this._setLanguage("en")}
+            title="English"
+          >
+            EN
+          </button>
+        </div>
       </header>
 
       <!-- Main View Area -->
@@ -532,12 +611,14 @@ export class TonieESPPanel extends LitElement {
           ? html`<tonieesp-dashboard-view
               .boxes=${this._boxes}
               .tags=${this._tags}
+              .lang=${this._lang}
             ></tonieesp-dashboard-view>`
           : ""}
         ${this._activeView === "tags"
           ? html`<tonieesp-tag-library-view
               .tags=${this._tags}
               .boxes=${this._boxes}
+              .lang=${this._lang}
             ></tonieesp-tag-library-view>`
           : ""}
         ${this._activeView === "editor"
@@ -545,23 +626,32 @@ export class TonieESPPanel extends LitElement {
               .tag=${this._editingTag}
               .boxes=${this._boxes}
               .initialUid=${this._initialUid}
+              .lang=${this._lang}
             ></tonieesp-tag-editor-view>`
           : ""}
         ${this._activeView === "detail" && this._selectedBox
           ? html`<tonieesp-box-detail-view
               .box=${this._selectedBox}
+              .lang=${this._lang}
             ></tonieesp-box-detail-view>`
           : ""}
         ${this._activeView === "browser"
           ? html`<tonieesp-media-browser-view
               .api=${this._api}
+              .lang=${this._lang}
             ></tonieesp-media-browser-view>`
           : ""}
         ${this._activeView === "settings"
-          ? html`<tonieesp-settings-view .api=${this._api}></tonieesp-settings-view>`
+          ? html`<tonieesp-settings-view
+              .api=${this._api}
+              .lang=${this._lang}
+            ></tonieesp-settings-view>`
           : ""}
         ${this._activeView === "logs"
-          ? html`<tonieesp-logs-view .logs=${this._logs}></tonieesp-logs-view>`
+          ? html`<tonieesp-logs-view
+              .logs=${this._logs}
+              .lang=${this._lang}
+            ></tonieesp-logs-view>`
           : ""}
       </main>
 
@@ -571,10 +661,9 @@ export class TonieESPPanel extends LitElement {
             <div class="modal-backdrop">
               <div class="modal-content">
                 <div class="pulse-icon">📡</div>
-                <h3 class="modal-title">Scan-Lernmodus aktiv</h3>
+                <h3 class="modal-title">${localize("learn.title", this._lang)}</h3>
                 <p class="modal-text">
-                  Stelle jetzt eine NFC-Figur auf eine beliebige Toniebox. Die
-                  UID wird direkt empfangen.
+                  ${localize("learn.instructions", this._lang)}
                 </p>
 
                 ${this._learnedUid
@@ -585,13 +674,13 @@ export class TonieESPPanel extends LitElement {
                           class="btn-modal btn-modal-cancel"
                           @click=${this._handleStopScanLearning}
                         >
-                          Schließen
+                          ${localize("learn.close", this._lang)}
                         </button>
                         <button
                           class="btn-modal btn-modal-use"
                           @click=${this._handleUseLearnedTag}
                         >
-                          Figur einrichten →
+                          ${localize("learn.use_btn", this._lang)}
                         </button>
                       </div>
                     `
@@ -600,7 +689,7 @@ export class TonieESPPanel extends LitElement {
                         class="btn-modal btn-modal-cancel"
                         @click=${this._handleStopScanLearning}
                       >
-                        Abbrechen
+                        ${localize("learn.cancel", this._lang)}
                       </button>
                     `}
               </div>
