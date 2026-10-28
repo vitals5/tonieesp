@@ -100,6 +100,40 @@ export interface MediaSearchResult {
   image?: string;
 }
 
+export interface ImageItem {
+  title: string;
+  url: string;
+  thumbnail: string;
+  media_content_id: string;
+}
+
+export interface DirectoryItem {
+  title: string;
+  media_content_id: string;
+  can_expand: boolean;
+}
+
+export interface ImagePreset {
+  id: string;
+  title: string;
+  url: string;
+  category: string;
+}
+
+export interface BrowseImagesResult {
+  current: {
+    title: string;
+    media_content_id: string;
+  };
+  parents: Array<{
+    title: string;
+    media_content_id: string;
+  }>;
+  directories: DirectoryItem[];
+  images: ImageItem[];
+  presets: ImagePreset[];
+}
+
 export interface DiagnosticsData {
   box_count: number;
   tag_count: number;

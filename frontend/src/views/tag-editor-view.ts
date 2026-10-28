@@ -1,6 +1,12 @@
 import { LitElement, css, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { DeviceOverride, MediaSearchResult, NFCTag, TonieBox } from "../types";
+import {
+  BrowseImagesResult,
+  DeviceOverride,
+  MediaSearchResult,
+  NFCTag,
+  TonieBox,
+} from "../types";
 import { localize } from "../localize";
 
 @customElement("tonieesp-tag-editor-view")
@@ -34,6 +40,16 @@ export class TonieESPTagEditorView extends LitElement {
   @state() private _modalSearching = false;
   @state() private _modalResults: MediaSearchResult[] = [];
   @state() private _modalSearched = false;
+
+  // Cover Image Media Explorer Modal state
+  @state() private _showImageModal = false;
+  @state() private _imageModalTab: "local" | "presets" | "media" = "local";
+  @state() private _imageModalLoading = false;
+  @state() private _imageModalData?: BrowseImagesResult;
+  @state() private _imageFilterQuery = "";
+  @state() private _imageMediaSearchQuery = "";
+  @state() private _imageMediaSearching = false;
+  @state() private _imageMediaResults: MediaSearchResult[] = [];
 
   static styles = css`
     *,
@@ -203,6 +219,41 @@ export class TonieESPTagEditorView extends LitElement {
       box-sizing: border-box;
     }
 
+    .image-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .image-input-group input {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .btn-image-browse {
+      background: var(--secondary-background-color, #f0f0f0);
+      color: var(--primary-text-color, #222);
+      border: 1px solid var(--divider-color, #ccc);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-image-browse:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
     .checkbox-row {
       display: flex;
       align-items: center;
@@ -224,18 +275,53 @@ export class TonieESPTagEditorView extends LitElement {
       gap: 12px;
       padding: 10px;
       background: var(--secondary-background-color, #f9f9f9);
+      border: 1px solid var(--divider-color, #eee);
       border-radius: 8px;
       width: 100%;
       box-sizing: border-box;
     }
 
     .preview-thumb {
-      width: 50px;
-      height: 50px;
-      border-radius: 6px;
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
       object-fit: cover;
-      background: #ddd;
+      background: #e0e0e0;
       flex-shrink: 0;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .preview-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .preview-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary-text-color, #222);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-clear-image {
+      background: transparent;
+      border: none;
+      color: #e53935;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 2px 0;
+      text-align: left;
+      width: fit-content;
+    }
+
+    .btn-clear-image:hover {
+      text-decoration: underline;
     }
 
     /* Overrides section */
@@ -324,6 +410,20 @@ export class TonieESPTagEditorView extends LitElement {
       }
 
       .btn-scan {
+        width: auto;
+        padding: 0 16px;
+      }
+
+      .image-input-group {
+        flex-direction: row;
+      }
+
+      .image-input-group input {
+        flex: 1;
+        width: auto;
+      }
+
+      .btn-image-browse {
         width: auto;
         padding: 0 16px;
       }
@@ -518,6 +618,360 @@ export class TonieESPTagEditorView extends LitElement {
       white-space: nowrap;
       flex-shrink: 0;
     }
+
+    /* Cover Image Explorer Modal Styles */
+    .image-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    .image-modal-content {
+      background: var(--card-background-color, #ffffff);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 720px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .image-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--divider-color, #eee);
+    }
+
+    .image-modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0;
+      color: var(--primary-text-color, #111);
+    }
+
+    .image-modal-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--secondary-background-color, #f8f9fa);
+      border-bottom: 1px solid var(--divider-color, #eee);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      white-space: nowrap;
+    }
+
+    .img-tab-btn {
+      background: transparent;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--secondary-text-color, #666);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .img-tab-btn.active {
+      background: var(--primary-color, #03a9f4);
+      color: white;
+    }
+
+    .image-modal-body {
+      padding: 16px 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    .explorer-nav-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    @media (min-width: 540px) {
+      .explorer-nav-row {
+        flex-direction: row;
+        align-items: center;
+      }
+    }
+
+    .breadcrumbs-bar {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 13px;
+      padding: 8px 12px;
+      background: var(--secondary-background-color, #f4f5f7);
+      border-radius: 8px;
+      min-width: 0;
+    }
+
+    .breadcrumb-item {
+      cursor: pointer;
+      color: var(--primary-color, #03a9f4);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .breadcrumb-item:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb-sep {
+      color: var(--secondary-text-color, #999);
+    }
+
+    .breadcrumb-current {
+      color: var(--primary-text-color, #333);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .explorer-filter-input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color, #ccc);
+      background: var(--card-background-color, #fff);
+      font-size: 13px;
+      min-width: 160px;
+      box-sizing: border-box;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary-text-color, #444);
+      margin-top: 4px;
+    }
+
+    .folders-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+      gap: 10px;
+      width: 100%;
+    }
+
+    .folder-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--card-background-color, #ffffff);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-width: 0;
+    }
+
+    .folder-card:hover {
+      border-color: var(--primary-color, #03a9f4);
+      background: rgba(3, 169, 244, 0.04);
+    }
+
+    .folder-icon {
+      font-size: 18px;
+    }
+
+    .folder-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary-text-color, #222);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .images-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 125px), 1fr));
+      gap: 12px;
+      width: 100%;
+    }
+
+    .image-card {
+      display: flex;
+      flex-direction: column;
+      background: var(--card-background-color, #ffffff);
+      border: 1px solid var(--divider-color, #e2e8f0);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .image-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+      border-color: var(--primary-color, #03a9f4);
+    }
+
+    .image-card-thumb {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      background: #f0f0f0;
+      display: block;
+    }
+
+    .image-card-title {
+      padding: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary-text-color, #333);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center;
+    }
+
+    .presets-intro {
+      font-size: 13px;
+      color: var(--secondary-text-color, #666);
+    }
+
+    .presets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 110px), 1fr));
+      gap: 12px;
+      width: 100%;
+    }
+
+    .preset-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 8px;
+      background: var(--card-background-color, #ffffff);
+      border: 1px solid var(--divider-color, #e0e0e0);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .preset-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+      border-color: var(--primary-color, #03a9f4);
+    }
+
+    .preset-img {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+
+    .preset-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary-text-color, #222);
+      line-height: 1.2;
+    }
+
+    .explorer-empty-box {
+      text-align: center;
+      padding: 30px 16px;
+      color: var(--secondary-text-color, #666);
+      background: var(--secondary-background-color, #f9f9f9);
+      border-radius: 8px;
+      border: 1px dashed var(--divider-color, #ccc);
+    }
+
+    .explorer-empty-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+
+    .explorer-empty-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary-text-color, #222);
+      margin-bottom: 6px;
+    }
+
+    .explorer-empty-hint {
+      font-size: 12px;
+      line-height: 1.4;
+      max-width: 440px;
+      margin: 0 auto;
+    }
+
+    .current-media-art-box {
+      background: var(--secondary-background-color, #f9f9f9);
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color, #eee);
+    }
+
+    .current-media-art-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .current-media-thumb {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #e0e0e0;
+    }
+
+    .current-media-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .current-media-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary-text-color, #111);
+    }
+
+    .current-media-sub {
+      font-size: 11px;
+      color: var(--secondary-text-color, #777);
+      text-transform: capitalize;
+    }
+
+    .modal-loading-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 40px;
+      color: var(--secondary-text-color, #666);
+      font-size: 14px;
+    }
   `;
 
   connectedCallback() {
@@ -594,6 +1048,350 @@ export class TonieESPTagEditorView extends LitElement {
 
   public setMediaSelection(item: MediaSearchResult) {
     this._selectMediaItem(item);
+  }
+
+  // --- Cover Image Explorer Methods ---
+  private async _openImageExplorerModal() {
+    this._showImageModal = true;
+    this._imageFilterQuery = "";
+    if (!this._imageModalData) {
+      await this._loadImageFolder("");
+    }
+  }
+
+  private _closeImageExplorerModal() {
+    this._showImageModal = false;
+  }
+
+  private async _loadImageFolder(mediaContentId = "") {
+    if (!this.api) return;
+    this._imageModalLoading = true;
+    try {
+      this._imageModalData = await this.api.browseImages(mediaContentId);
+    } catch (err) {
+      console.error("Error browsing images:", err);
+    } finally {
+      this._imageModalLoading = false;
+    }
+  }
+
+  private _selectCoverImage(url: string) {
+    this._image = url;
+    this._showImageModal = false;
+  }
+
+  private async _searchImageMedia(e?: Event) {
+    if (e) e.preventDefault();
+    if (!this._imageMediaSearchQuery.trim() || !this.api) return;
+    this._imageMediaSearching = true;
+    try {
+      const res = await this.api.searchMedia(
+        this._imageMediaSearchQuery.trim(),
+        ["album", "playlist", "track"]
+      );
+      this._imageMediaResults = (res || []).filter(
+        (item: MediaSearchResult) => !!item.image
+      );
+    } catch (err) {
+      console.error("Error searching media images:", err);
+      this._imageMediaResults = [];
+    } finally {
+      this._imageMediaSearching = false;
+    }
+  }
+
+  private _renderLocalMediaTab() {
+    if (this._imageModalLoading) {
+      return html`
+        <div class="modal-loading-box">
+          <span>⏳ ${localize("image_modal.loading", this.lang)}</span>
+        </div>
+      `;
+    }
+
+    const data = this._imageModalData;
+    if (!data) return html``;
+
+    const filter = this._imageFilterQuery.trim().toLowerCase();
+    const directories = (data.directories || []).filter(
+      (d) => !filter || d.title.toLowerCase().includes(filter)
+    );
+    const images = (data.images || []).filter(
+      (img) => !filter || img.title.toLowerCase().includes(filter)
+    );
+
+    const parents = data.parents || [];
+    const parentFolder = parents.length > 0 ? parents[parents.length - 1] : null;
+
+    return html`
+      <!-- Breadcrumb Bar -->
+      <div class="explorer-breadcrumbs">
+        <button
+          class="crumb-btn ${!data.current?.media_content_id ? "active" : ""}"
+          type="button"
+          @click=${() => this._loadImageFolder("")}
+        >
+          🏠 ${localize("image_modal.root", this.lang)}
+        </button>
+        ${parents.map(
+          (b) => html`
+            <span class="crumb-separator">/</span>
+            <button
+              class="crumb-btn"
+              type="button"
+              @click=${() => this._loadImageFolder(b.media_content_id)}
+            >
+              ${b.title}
+            </button>
+          `
+        )}
+        ${data.current?.media_content_id
+          ? html`
+              <span class="crumb-separator">/</span>
+              <span class="crumb-btn active">${data.current.title}</span>
+            `
+          : ""}
+      </div>
+
+      <!-- Filter Query Input -->
+      <div style="margin-bottom: 12px; width: 100%;">
+        <input
+          class="modal-search-input"
+          type="search"
+          placeholder=${localize("image_modal.filter_placeholder", this.lang)}
+          .value=${this._imageFilterQuery}
+          @input=${(e: Event) =>
+            (this._imageFilterQuery = (e.target as HTMLInputElement).value)}
+        />
+      </div>
+
+      <!-- Directories & Parent Navigation -->
+      ${parentFolder
+        ? html`
+            <div style="margin-bottom: 10px;">
+              <button
+                class="folder-card"
+                type="button"
+                style="width: 100%;"
+                @click=${() => this._loadImageFolder(parentFolder.media_content_id)}
+              >
+                <span class="folder-icon">⬆️</span>
+                <span class="folder-name">.. (${parentFolder.title})</span>
+              </button>
+            </div>
+          `
+        : ""}
+
+      ${directories.length > 0
+        ? html`
+            <div class="folders-grid" style="margin-bottom: 16px;">
+              ${directories.map(
+                (dir) => html`
+                  <div
+                    class="folder-card"
+                    @click=${() => this._loadImageFolder(dir.media_content_id)}
+                  >
+                    <span class="folder-icon">📁</span>
+                    <span class="folder-name" title="${dir.title}">${dir.title}</span>
+                  </div>
+                `
+              )}
+            </div>
+          `
+        : ""}
+
+      <!-- Images Grid -->
+      ${images.length > 0
+        ? html`
+            <div class="images-grid">
+              ${images.map(
+                (img) => html`
+                  <div
+                    class="image-card"
+                    @click=${() => this._selectCoverImage(img.url)}
+                  >
+                    <img
+                      class="image-card-thumb"
+                      src="${img.thumbnail || img.url}"
+                      alt="${img.title}"
+                      loading="lazy"
+                    />
+                    <div class="image-card-title" title="${img.title}">
+                      ${img.title}
+                    </div>
+                  </div>
+                `
+              )}
+            </div>
+          `
+        : directories.length === 0
+          ? html`
+              <div class="explorer-empty-box">
+                <div class="explorer-empty-icon">🖼️</div>
+                <div class="explorer-empty-title">
+                  ${localize("image_modal.no_images", this.lang)}
+                </div>
+                <div class="explorer-empty-hint">
+                  ${localize("image_modal.no_images_hint", this.lang)}
+                </div>
+              </div>
+            `
+          : ""}
+    `;
+  }
+
+  private _renderPresetsTab() {
+    const presets = this._imageModalData?.presets || [];
+    return html`
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="presets-intro">
+          ${this.lang.startsWith("en")
+            ? "Choose a colorful Tonie figurine icon for your tag. These icons work offline without any external hosting."
+            : "Wähle eine farbige Tonie-Figur als Icon für diesen Tag. Die Icons funktionieren sofort offline ohne externen Speicher."}
+        </div>
+        <div class="presets-grid">
+          ${presets.map(
+            (p) => html`
+              <div
+                class="preset-card"
+                @click=${() => this._selectCoverImage(p.url)}
+              >
+                <img class="preset-img" src="${p.url}" alt="${p.title}" />
+                <span class="preset-name">${p.title}</span>
+              </div>
+            `
+          )}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderMediaCoverTab() {
+    return html`
+      <div style="display: flex; flex-direction: column; gap: 14px; width: 100%;">
+        <!-- Option to use current media item's cover if available -->
+        ${this._image
+          ? html`
+              <div class="current-media-art-box">
+                <div style="font-size: 12px; font-weight: 600; color: #555;">
+                  ${localize("image_modal.use_current_media_art", this.lang)}
+                </div>
+                <div class="current-media-art-card">
+                  <img class="current-media-thumb" src="${this._image}" alt="Cover" />
+                  <div class="current-media-info">
+                    <div class="current-media-title">${this._mediaTitle || "Aktuelles Medium"}</div>
+                    <div class="current-media-sub">${this._mediaType}</div>
+                  </div>
+                </div>
+              </div>
+            `
+          : ""}
+
+        <!-- Search Music Assistant for artwork -->
+        <form class="modal-search-row" @submit=${this._searchImageMedia}>
+          <input
+            class="modal-search-input"
+            type="search"
+            placeholder=${localize("image_modal.search_ma_placeholder", this.lang)}
+            .value=${this._imageMediaSearchQuery}
+            @input=${(e: Event) =>
+              (this._imageMediaSearchQuery = (e.target as HTMLInputElement).value)}
+          />
+          <button
+            class="btn btn-save"
+            type="submit"
+            ?disabled=${this._imageMediaSearching || !this._imageMediaSearchQuery.trim()}
+          >
+            ${this._imageMediaSearching
+              ? localize("browser.searching", this.lang)
+              : localize("browser.search_btn", this.lang)}
+          </button>
+        </form>
+
+        ${this._imageMediaResults.length > 0
+          ? html`
+              <div class="images-grid">
+                ${this._imageMediaResults.map(
+                  (item) => html`
+                    <div
+                      class="image-card"
+                      @click=${() => this._selectCoverImage(item.image!)}
+                    >
+                      <img
+                        class="image-card-thumb"
+                        src="${item.image}"
+                        alt="${item.title}"
+                        loading="lazy"
+                      />
+                      <div class="image-card-title" title="${item.title}">
+                        ${item.title}
+                      </div>
+                    </div>
+                  `
+                )}
+              </div>
+            `
+          : ""}
+      </div>
+    `;
+  }
+
+  private _renderImageExplorerModal() {
+    return html`
+      <div class="image-modal-backdrop" @click=${this._closeImageExplorerModal}>
+        <div class="image-modal-content" @click=${(e: Event) => e.stopPropagation()}>
+          <div class="image-modal-header">
+            <h3 class="image-modal-title">🖼️ ${localize("image_modal.title", this.lang)}</h3>
+            <button
+              class="btn-close-modal"
+              type="button"
+              @click=${this._closeImageExplorerModal}
+              title="Schließen"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div class="image-modal-tabs">
+            <button
+              class="image-modal-tab-btn ${this._imageModalTab === "local" ? "active" : ""}"
+              type="button"
+              @click=${() => {
+                this._imageModalTab = "local";
+                if (!this._imageModalData) this._loadImageFolder("");
+              }}
+            >
+              ${localize("image_modal.tab_local", this.lang)}
+            </button>
+            <button
+              class="image-modal-tab-btn ${this._imageModalTab === "presets" ? "active" : ""}"
+              type="button"
+              @click=${() => {
+                this._imageModalTab = "presets";
+                if (!this._imageModalData) this._loadImageFolder("");
+              }}
+            >
+              ${localize("image_modal.tab_presets", this.lang)}
+            </button>
+            <button
+              class="image-modal-tab-btn ${this._imageModalTab === "media" ? "active" : ""}"
+              type="button"
+              @click=${() => (this._imageModalTab = "media")}
+            >
+              ${localize("image_modal.tab_media", this.lang)}
+            </button>
+          </div>
+
+          <div class="image-modal-body">
+            ${this._imageModalTab === "local"
+              ? this._renderLocalMediaTab()
+              : this._imageModalTab === "presets"
+                ? this._renderPresetsTab()
+                : this._renderMediaCoverTab()}
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   private _onSave() {
@@ -729,15 +1527,48 @@ export class TonieESPTagEditorView extends LitElement {
                   />
                 </div>
 
-                <div class="form-group">
+                <div class="form-group full-width">
                   <label>${localize("editor.image", this.lang)}</label>
-                  <input
-                    type="text"
-                    placeholder="https://..."
-                    .value=${this._image}
-                    @input=${(e: Event) =>
-                      (this._image = (e.target as HTMLInputElement).value)}
-                  />
+                  <div class="image-input-group">
+                    <input
+                      type="text"
+                      placeholder="https://... oder /local/..."
+                      .value=${this._image}
+                      @input=${(e: Event) =>
+                        (this._image = (e.target as HTMLInputElement).value)}
+                    />
+                    <button
+                      class="btn-image-browse"
+                      type="button"
+                      @click=${this._openImageExplorerModal}
+                    >
+                      🖼️ ${localize("editor.browse_image", this.lang)}
+                    </button>
+                  </div>
+                  ${this._image
+                    ? html`
+                        <div class="preview-box">
+                          <img
+                            class="preview-thumb"
+                            src="${this._image}"
+                            alt="Cover"
+                            @error=${(e: Event) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                          <div class="preview-info">
+                            <div class="preview-label">${this._image}</div>
+                            <button
+                              class="btn-clear-image"
+                              type="button"
+                              @click=${() => (this._image = "")}
+                            >
+                              ✕ ${localize("editor.clear_image", this.lang)}
+                            </button>
+                          </div>
+                        </div>
+                      `
+                    : ""}
                 </div>
 
                 <div class="form-group full-width">
@@ -988,6 +1819,9 @@ export class TonieESPTagEditorView extends LitElement {
             </div>
           `
         : ""}
+
+      <!-- Cover Image Explorer Modal -->
+      ${this._showImageModal ? this._renderImageExplorerModal() : ""}
     `;
   }
 }

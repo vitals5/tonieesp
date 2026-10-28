@@ -11,6 +11,7 @@ from custom_components.tonieesp.coordinator import TonieESPCoordinator
 from custom_components.tonieesp.websocket_api import (
     ws_handle_boxes_list,
     ws_handle_boxes_update,
+    ws_handle_media_browse_images,
     ws_handle_playback_control,
     ws_handle_tags_delete,
     ws_handle_tags_learn_start,
@@ -185,3 +186,24 @@ async def test_ws_playback_control(hass, mock_coordinator, mock_connection):
         "media_player.box_player", fallback_entity_id="media_player.box_speaker"
     )
     mock_connection.send_result.assert_called_once_with(2, {"status": "ok"})
+
+
+@pytest.mark.asyncio
+async def test_ws_media_browse_images(hass, mock_connection, tmp_path):
+    """Test browsing images and presets over WebSocket."""
+    # Test Root with presets
+    await unwrap(ws_handle_media_browse_images)(
+        hass,
+        mock_connection,
+        {"id": 10, "type": "tonieesp/media/browse_images", "media_content_id": ""},
+    )
+
+    mock_connection.send_result.assert_called_once()
+    call_args = mock_connection.send_result.call_args[0]
+    assert call_args[0] == 10
+    result = call_args[1]
+    assert "presets" in result
+    assert len(result["presets"]) > 0
+    assert result["presets"][0]["url"].startswith("data:image/svg+xml")
+    assert "directories" in result
+    assert "images" in result

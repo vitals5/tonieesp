@@ -173,7 +173,17 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
                                 url_path=FRONTEND_STATIC_PATH,
                                 path=str(frontend_dir),
                                 cache_headers=False,
-                            )
+                            ),
+                            StaticPathConfig(
+                                url_path="/tonieesp/frontend.js",
+                                path=str(frontend_js),
+                                cache_headers=False,
+                            ),
+                            StaticPathConfig(
+                                url_path="/tonieesp/tonieesp-panel.js",
+                                path=str(frontend_js),
+                                cache_headers=False,
+                            ),
                         ]
                     )
                     hass.data[DOMAIN]["static_path_registered"] = True

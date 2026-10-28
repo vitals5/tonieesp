@@ -3,6 +3,7 @@
  */
 
 import {
+  BrowseImagesResult,
   DiagnosticsData,
   MediaSearchResult,
   NFCTag,
@@ -95,13 +96,20 @@ export class TonieESPWebSocketAPI {
     });
   }
 
-  // --- Media Search ---
+  // --- Media Search & Cover Browsing ---
 
   public async searchMedia(query: string, mediaTypes?: string[]): Promise<MediaSearchResult[]> {
     return this.hass.callWS({
       type: "tonieesp/media/search",
       query: query,
       media_types: mediaTypes,
+    });
+  }
+
+  public async browseImages(mediaContentId = ""): Promise<BrowseImagesResult> {
+    return this.hass.callWS({
+      type: "tonieesp/media/browse_images",
+      media_content_id: mediaContentId,
     });
   }
 

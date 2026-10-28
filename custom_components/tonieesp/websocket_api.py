@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import urllib.parse
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -15,6 +17,7 @@ from .const import (
     WS_TYPE_BOXES_UPDATE,
     WS_TYPE_DIAGNOSTICS,
     WS_TYPE_EVENTS_SUBSCRIBE,
+    WS_TYPE_MEDIA_BROWSE_IMAGES,
     WS_TYPE_MEDIA_SEARCH,
     WS_TYPE_PLAYBACK_CONTROL,
     WS_TYPE_TAGS_DELETE,
@@ -50,6 +53,7 @@ def async_register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_handle_tags_learn_start)
     websocket_api.async_register_command(hass, ws_handle_tags_learn_stop)
     websocket_api.async_register_command(hass, ws_handle_media_search)
+    websocket_api.async_register_command(hass, ws_handle_media_browse_images)
     websocket_api.async_register_command(hass, ws_handle_playback_control)
     websocket_api.async_register_command(hass, ws_handle_events_subscribe)
     websocket_api.async_register_command(hass, ws_handle_diagnostics)
@@ -262,6 +266,285 @@ async def ws_handle_media_search(
         query=msg["query"], media_types=msg.get("media_types")
     )
     connection.send_result(msg["id"], results)
+
+
+TONIE_PRESETS = [
+    {
+        "id": "preset_kreativ_rot",
+        "title": "Kreativ-Tonie (Rot)",
+        "color": "#e53935",
+        "category": "kreativ",
+    },
+    {
+        "id": "preset_kreativ_blau",
+        "title": "Kreativ-Tonie (Blau)",
+        "color": "#1e88e5",
+        "category": "kreativ",
+    },
+    {
+        "id": "preset_kreativ_gruen",
+        "title": "Kreativ-Tonie (Grün)",
+        "color": "#43a047",
+        "category": "kreativ",
+    },
+    {
+        "id": "preset_kreativ_pink",
+        "title": "Kreativ-Tonie (Pink)",
+        "color": "#d81b60",
+        "category": "kreativ",
+    },
+    {
+        "id": "preset_kreativ_anthrazit",
+        "title": "Kreativ-Tonie (Anthrazit)",
+        "color": "#37474f",
+        "category": "kreativ",
+    },
+    {
+        "id": "preset_kreativ_orange",
+        "title": "Kreativ-Tonie (Orange)",
+        "color": "#fb8c00",
+        "category": "kreativ",
+    },
+    {
+        "id": "preset_kreativ_tuerkis",
+        "title": "Kreativ-Tonie (Türkis)",
+        "color": "#00acc1",
+        "category": "kreativ",
+    },
+    {
+        "id": "preset_hoerspiel",
+        "title": "Hörspiel / Geschichte",
+        "color": "#8e24aa",
+        "category": "audio",
+    },
+    {
+        "id": "preset_musik",
+        "title": "Kinderlieder / Musik",
+        "color": "#3949ab",
+        "category": "audio",
+    },
+    {
+        "id": "preset_schlaf",
+        "title": "Schlaflieder & Entspannung",
+        "color": "#5c6bc0",
+        "category": "audio",
+    },
+]
+
+
+def _build_preset_svg_url(color: str, title: str) -> str:
+    """Build an inline SVG data URI for a Tonie figurine preset."""
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">'
+        f'<rect width="100" height="100" rx="20" fill="{color}"/>'
+        f'<circle cx="50" cy="42" r="22" fill="white" opacity="0.9"/>'
+        f'<path d="M38 25 L34 10 L44 20 Z" fill="white" opacity="0.9"/>'
+        f'<path d="M62 25 L66 10 L56 20 Z" fill="white" opacity="0.9"/>'
+        f'<circle cx="44" cy="40" r="2.5" fill="{color}"/>'
+        f'<circle cx="56" cy="40" r="2.5" fill="{color}"/>'
+        f'<path d="M45 47 Q50 51 55 47" stroke="{color}" stroke-width="2" fill="none" stroke-linecap="round"/>'
+        f'<rect x="35" y="62" width="30" height="22" rx="6" fill="white" opacity="0.9"/>'
+        f"</svg>"
+    )
+    return f"data:image/svg+xml;utf8,{urllib.parse.quote(svg)}"
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_TYPE_MEDIA_BROWSE_IMAGES,
+        vol.Optional("media_content_id", default=""): str,
+    }
+)
+@websocket_api.async_response
+async def ws_handle_media_browse_images(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Browse cover images from Home Assistant media source, local /config/www, and built-in presets."""
+    media_content_id = (msg.get("media_content_id") or "").strip()
+
+    directories: list[dict[str, Any]] = []
+    images: list[dict[str, Any]] = []
+    parents: list[dict[str, Any]] = []
+    current_title = "Medienauswahl"
+
+    presets = [
+        {
+            "id": p["id"],
+            "title": p["title"],
+            "url": _build_preset_svg_url(p["color"], p["title"]),
+            "category": p["category"],
+        }
+        for p in TONIE_PRESETS
+    ]
+
+    image_exts = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"}
+    www_dir = Path(hass.config.path("www"))
+
+    if media_content_id.startswith("tonieesp_www://"):
+        rel_str = media_content_id[len("tonieesp_www://") :].lstrip("/")
+        target_dir = www_dir / rel_str if rel_str else www_dir
+        current_title = target_dir.name if rel_str else "Lokale Dateien (/local/)"
+        parents.append({"title": "Medien-Startseite", "media_content_id": ""})
+        if rel_str:
+            parent_rel = str(Path(rel_str).parent)
+            if parent_rel == ".":
+                parents.append(
+                    {"title": "Lokale Dateien (/local/)", "media_content_id": "tonieesp_www://"}
+                )
+            else:
+                parents.append(
+                    {
+                        "title": Path(parent_rel).name,
+                        "media_content_id": f"tonieesp_www://{parent_rel}",
+                    }
+                )
+
+        if www_dir.exists() and target_dir.exists() and target_dir.is_dir():
+            try:
+                resolved_target = target_dir.resolve()
+                if resolved_target.is_relative_to(www_dir.resolve()):
+                    for item in sorted(resolved_target.iterdir()):
+                        if item.name.startswith("."):
+                            continue
+                        if item.is_dir():
+                            sub_rel = item.relative_to(www_dir.resolve()).as_posix()
+                            directories.append(
+                                {
+                                    "title": item.name,
+                                    "media_content_id": f"tonieesp_www://{sub_rel}",
+                                    "can_expand": True,
+                                }
+                            )
+                        elif item.is_file() and item.suffix.lower() in image_exts:
+                            sub_rel = item.relative_to(www_dir.resolve()).as_posix()
+                            img_url = f"/local/{sub_rel}"
+                            images.append(
+                                {
+                                    "title": item.name,
+                                    "url": img_url,
+                                    "thumbnail": img_url,
+                                    "media_content_id": f"tonieesp_www://{sub_rel}",
+                                }
+                            )
+            except Exception as err:
+                _LOGGER.debug("Error reading local www directory %s: %s", target_dir, err)
+
+    elif media_content_id.startswith("media-source://"):
+        parents.append({"title": "Medien-Startseite", "media_content_id": ""})
+        current_title = "Home Assistant Medien"
+        if "media_source" in hass.config.components:
+            try:
+                from homeassistant.components import media_source
+
+                browse_item = await media_source.async_browse_media(hass, media_content_id)
+                current_title = browse_item.title or current_title
+                for child in browse_item.children or []:
+                    if child.can_expand:
+                        directories.append(
+                            {
+                                "title": child.title,
+                                "media_content_id": child.media_content_id,
+                                "can_expand": True,
+                            }
+                        )
+                    elif child.media_class == "image" or any(
+                        child.title.lower().endswith(ext) for ext in image_exts
+                    ):
+                        resolved_url = child.thumbnail or ""
+                        try:
+                            resolved = await media_source.async_resolve_media(
+                                hass, child.media_content_id, None
+                            )
+                            resolved_url = media_source.async_process_play_media_url(
+                                hass, resolved.url, allow_relative_url=True
+                            )
+                        except Exception:
+                            pass
+                        if not resolved_url:
+                            resolved_url = child.thumbnail or child.media_content_id
+                        images.append(
+                            {
+                                "title": child.title,
+                                "url": resolved_url,
+                                "thumbnail": child.thumbnail or resolved_url,
+                                "media_content_id": child.media_content_id,
+                            }
+                        )
+            except Exception as err:
+                _LOGGER.debug("Error browsing media_source %s: %s", media_content_id, err)
+
+    else:
+        # ROOT VIEW
+        current_title = "Medien-Startseite"
+
+        if www_dir.exists() and www_dir.is_dir():
+            has_subdirs = any(p.is_dir() and not p.name.startswith(".") for p in www_dir.iterdir())
+            has_images = any(
+                p.is_file() and p.suffix.lower() in image_exts for p in www_dir.iterdir()
+            )
+            if has_subdirs or has_images:
+                directories.append(
+                    {
+                        "title": "📁 Lokale Dateien (/local/)",
+                        "media_content_id": "tonieesp_www://",
+                        "can_expand": True,
+                    }
+                )
+                for item in sorted(www_dir.iterdir()):
+                    if (
+                        item.is_file()
+                        and item.suffix.lower() in image_exts
+                        and not item.name.startswith(".")
+                    ):
+                        img_url = f"/local/{item.name}"
+                        images.append(
+                            {
+                                "title": item.name,
+                                "url": img_url,
+                                "thumbnail": img_url,
+                                "media_content_id": f"tonieesp_www://{item.name}",
+                            }
+                        )
+
+        if "media_source" in hass.config.components:
+            try:
+                from homeassistant.components import media_source
+
+                browse_root = await media_source.async_browse_media(hass, None)
+                for child in browse_root.children or []:
+                    if child.can_expand:
+                        directories.append(
+                            {
+                                "title": f"📁 {child.title}",
+                                "media_content_id": child.media_content_id,
+                                "can_expand": True,
+                            }
+                        )
+                    elif child.media_class == "image" or any(
+                        child.title.lower().endswith(ext) for ext in image_exts
+                    ):
+                        img_url = child.thumbnail or child.media_content_id
+                        images.append(
+                            {
+                                "title": child.title,
+                                "url": img_url,
+                                "thumbnail": img_url,
+                                "media_content_id": child.media_content_id,
+                            }
+                        )
+            except Exception as err:
+                _LOGGER.debug("Error browsing media_source root: %s", err)
+
+    connection.send_result(
+        msg["id"],
+        {
+            "current": {"title": current_title, "media_content_id": media_content_id},
+            "parents": parents,
+            "directories": directories,
+            "images": images,
+            "presets": presets,
+        },
+    )
 
 
 @websocket_api.websocket_command(
