@@ -163,6 +163,21 @@ class PlaybackManager:
         active = self._active_sessions.get(box_id)
         if active and active.tag_uid == tag_uid and active.was_paused_by_removal:
             if (now - active.updated_at) < SHORT_TERM_RESUME_MAX_AGE:
+                # If player is currently paused, seamlessly resume playback without reloading
+                player_state = self.ma_adapter.get_player_state(player_entity_id)
+                if player_state.get("state") == "paused":
+                    _LOGGER.info(
+                        "Resuming paused playback for tag %s on box %s",
+                        tag_uid,
+                        box_id,
+                    )
+                    active.was_paused_by_removal = False
+                    active.updated_at = now
+                    await self.ma_adapter.async_resume(
+                        player_entity_id, fallback_entity_id=fallback_player_id
+                    )
+                    return
+
                 # Same tag returned to same box after pause
                 _LOGGER.info(
                     "Resuming short-term paused tag %s on box %s at position %.1fs (track: %s)",
@@ -197,12 +212,13 @@ class PlaybackManager:
                     resume_track_uri = saved_sess.track_uri
                     resume_track_title = saved_sess.track_title
 
-        # Start playback
+        # Start playback with enqueue="replace" to ensure no previous queue tracks leak
         await self.ma_adapter.async_play_media(
             player_entity_id=player_entity_id,
             media_type=media_type,
             media_id=media_id,
             resume_position=resume_position,
+            enqueue="replace",
             volume_limit=volume_limit,
             track_uri=resume_track_uri,
             track_title=resume_track_title,

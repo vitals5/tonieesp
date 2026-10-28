@@ -58,6 +58,7 @@ async def test_play_media_fallback_when_ma_unavailable(hass):
     assert domain == "media_player"
     assert service == "play_media"
     assert data["media_content_id"] == "radio://station/123"
+    assert data.get("extra") == {"enqueue": "replace"}
 
 
 @pytest.mark.asyncio
@@ -152,7 +153,7 @@ async def test_set_shuffle_and_repeat(hass):
 
 @pytest.mark.asyncio
 async def test_play_media_with_shuffle_preserves_full_playlist(hass):
-    """Test play_media with shuffle=True keeps full playlist/album and sets shuffle mode."""
+    """Test play_media with shuffle=True keeps full playlist/album, replaces queue, disables radio, and sets shuffle mode."""
     adapter = MusicAssistantAdapter(hass)
 
     called_services = []
@@ -162,7 +163,10 @@ async def test_play_media_with_shuffle_preserves_full_playlist(hass):
 
     hass.services._services = {
         "music_assistant": {"play_media": mock_service_handler},
-        "media_player": {"shuffle_set": mock_service_handler},
+        "media_player": {
+            "shuffle_set": mock_service_handler,
+            "clear_playlist": mock_service_handler,
+        },
     }
 
     # Call async_play_media with shuffle=True and a track_uri that would otherwise narrow to single track
@@ -174,13 +178,45 @@ async def test_play_media_with_shuffle_preserves_full_playlist(hass):
         shuffle=True,
     )
 
+    # Verify clear_playlist was called to purge any previously playing list
+    clear_calls = [c for c in called_services if c[1] == "clear_playlist"]
+    assert len(clear_calls) == 1
+    assert clear_calls[0][3] == {"entity_id": "media_player.box_1"}
+
     # Verify shuffle_set was called with True
     shuffle_calls = [c for c in called_services if c[1] == "shuffle_set"]
     assert len(shuffle_calls) >= 1
     assert shuffle_calls[0][2] == {"shuffle": True}
 
-    # Verify music_assistant.play_media was called with the FULL PLAYLIST, not the single track
+    # Verify music_assistant.play_media was called with the FULL PLAYLIST, enqueue=replace, and radio_mode=False
     play_calls = [c for c in called_services if c[1] == "play_media"]
     assert len(play_calls) == 1
     assert play_calls[0][2]["media_id"] == "spotify://playlist/great_hits"
     assert play_calls[0][2]["media_type"] == "playlist"
+    assert play_calls[0][2]["enqueue"] == "replace"
+    assert play_calls[0][2]["radio_mode"] is False
+
+
+@pytest.mark.asyncio
+async def test_clear_queue(hass):
+    """Test async_clear_queue sends clear_playlist to media_player entities."""
+    adapter = MusicAssistantAdapter(hass)
+
+    called_services = []
+
+    def mock_service_handler(domain, service, data, target):
+        called_services.append((domain, service, data, target))
+
+    hass.services._services = {
+        "media_player": {"clear_playlist": mock_service_handler},
+    }
+
+    await adapter.async_clear_queue(
+        "media_player.primary", fallback_entity_id="media_player.fallback"
+    )
+
+    assert len(called_services) == 2
+    assert called_services[0][1] == "clear_playlist"
+    assert called_services[0][3] == {"entity_id": "media_player.primary"}
+    assert called_services[1][1] == "clear_playlist"
+    assert called_services[1][3] == {"entity_id": "media_player.fallback"}

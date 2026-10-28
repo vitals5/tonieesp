@@ -1702,8 +1702,8 @@ var Oe=Object.defineProperty;var Ue=Object.getOwnPropertyDescriptor;var n=(s,t,e
       color: var(--primary-text-color, #222);
     }
 
-    /* DESKTOP & TABLET: Screen width >= 640px */
-    @media (min-width: 640px) {
+    /* DESKTOP & TABLET: Screen width >= 768px */
+    @media (min-width: 768px) {
       .editor-card {
         padding: 24px;
       }
@@ -2604,8 +2604,8 @@ var Oe=Object.defineProperty;var Ue=Object.getOwnPropertyDescriptor;var n=(s,t,e
       box-sizing: border-box;
     }
 
-    /* DESKTOP & TABLET: Screen width >= 640px */
-    @media (min-width: 640px) {
+    /* DESKTOP & TABLET: Screen width >= 768px */
+    @media (min-width: 768px) {
       .container {
         padding: 24px;
       }

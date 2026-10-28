@@ -20,6 +20,7 @@ from homeassistant.components.media_player import (
     ATTR_MEDIA_REPEAT,
     ATTR_MEDIA_SHUFFLE,
     ATTR_MEDIA_TITLE,
+    SERVICE_CLEAR_PLAYLIST,
     SERVICE_MEDIA_NEXT_TRACK,
     SERVICE_MEDIA_PAUSE,
     SERVICE_MEDIA_PLAY,
@@ -59,13 +60,46 @@ class MusicAssistantAdapter:
             return True
         return "mass" in self.hass.config.components
 
+    async def async_clear_queue(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
+        """Clear playback queue on player entity to prevent track leakage."""
+        entities = list(dict.fromkeys([e for e in (player_entity_id, fallback_entity_id) if e]))
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_CLEAR_PLAYLIST,
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                _LOGGER.debug("Cleared playlist on %s", ent)
+            except Exception as err:
+                _LOGGER.debug("clear_playlist failed on %s: %s", ent, err)
+
+        mass_client = self._get_mass_client()
+        if mass_client and hasattr(mass_client, "player_queues"):
+            with contextlib.suppress(Exception):
+                for queue in getattr(mass_client, "player_queues", []):
+                    q_id = getattr(queue, "queue_id", None)
+                    if not q_id:
+                        continue
+                    for ent in entities:
+                        if q_id == ent or ent.endswith(str(q_id)) or str(q_id) in ent:
+                            if hasattr(mass_client.player_queues, "clear"):
+                                res = mass_client.player_queues.clear(q_id)
+                                if asyncio.iscoroutine(res):
+                                    await res
+                                _LOGGER.debug("Direct mass_client cleared queue %s", q_id)
+                            break
+
     async def async_play_media(
         self,
         player_entity_id: str,
         media_type: str,
         media_id: str,
         resume_position: float | None = None,
-        enqueue: str = "play",
+        enqueue: str = "replace",
         volume_limit: float | None = None,
         track_uri: str | None = None,
         track_title: str | None = None,
@@ -87,7 +121,10 @@ class MusicAssistantAdapter:
                     await self.async_set_volume(player_entity_id, volume_limit)
                     await asyncio.sleep(0.15)
 
-        # 2. Configure shuffle & repeat on the player entity before playback starts
+        # 2. Clear existing queue so no old tracks or foreign playlists leak into playback
+        await self.async_clear_queue(player_entity_id, fallback_entity_id=fallback_player_id)
+
+        # 3. Configure shuffle & repeat on the player entity before playback starts
         if shuffle is not None:
             await self.async_set_shuffle(
                 player_entity_id, shuffle, fallback_entity_id=fallback_player_id
@@ -97,7 +134,7 @@ class MusicAssistantAdapter:
                 player_entity_id, repeat, fallback_entity_id=fallback_player_id
             )
 
-        # 3. Prefer music_assistant.play_media service if registered
+        # 4. Prefer music_assistant.play_media service if registered
         has_ma_action = self.hass.services.has_service(
             "music_assistant", "play_media"
         ) or self.hass.services.has_service("mass", "play_media")
@@ -116,21 +153,25 @@ class MusicAssistantAdapter:
             effective_media_id = track_uri or media_id
             effective_media_type = "track" if track_uri else (media_type or MEDIA_TYPE_PLAYLIST)
 
+        is_radio = (media_type or "").lower() == "radio"
+
         if has_ma_action:
             _LOGGER.debug(
-                "Calling %s.play_media on %s (media_id=%s, media_type=%s, original_id=%s, shuffle=%s)",
+                "Calling %s.play_media on %s (media_id=%s, media_type=%s, enqueue=%s, radio_mode=%s, shuffle=%s)",
                 domain,
                 player_entity_id,
                 effective_media_id,
                 effective_media_type,
-                media_id,
+                enqueue,
+                is_radio,
                 shuffle,
             )
-            # If playing a playlist and we have a specific track URI to resume, pass track_uri as media_id
+            # Use enqueue='replace' so MA purges previous tracks and only queues this playlist
             data: dict[str, Any] = {
                 "media_id": effective_media_id,
                 "media_type": effective_media_type,
                 "enqueue": enqueue,
+                "radio_mode": is_radio,
             }
             try:
                 await self.hass.services.async_call(
@@ -151,6 +192,8 @@ class MusicAssistantAdapter:
                 if effective_media_id != media_id:
                     data["media_id"] = media_id
                     data["media_type"] = media_type or MEDIA_TYPE_PLAYLIST
+                    data["enqueue"] = enqueue
+                    data["radio_mode"] = is_radio
                     await self.hass.services.async_call(
                         domain,
                         "play_media",
@@ -163,25 +206,40 @@ class MusicAssistantAdapter:
         else:
             # Fallback to standard media_player.play_media
             _LOGGER.debug(
-                "Calling media_player.play_media on %s (content_id=%s, type=%s, shuffle=%s)",
+                "Calling media_player.play_media on %s (content_id=%s, type=%s, enqueue=%s, shuffle=%s)",
                 player_entity_id,
                 effective_media_id,
                 effective_media_type,
+                enqueue,
                 shuffle,
             )
             data = {
                 ATTR_MEDIA_CONTENT_ID: effective_media_id,
                 ATTR_MEDIA_CONTENT_TYPE: effective_media_type,
+                "extra": {
+                    "enqueue": enqueue,
+                },
             }
-            await self.hass.services.async_call(
-                MEDIA_PLAYER_DOMAIN,
-                SERVICE_PLAY_MEDIA,
-                service_data=data,
-                target={"entity_id": player_entity_id},
-                blocking=True,
-            )
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_PLAY_MEDIA,
+                    service_data=data,
+                    target={"entity_id": player_entity_id},
+                    blocking=True,
+                )
+            except Exception as err:
+                _LOGGER.debug("play_media with extra failed (%s), retrying without extra", err)
+                data.pop("extra", None)
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_PLAY_MEDIA,
+                    service_data=data,
+                    target={"entity_id": player_entity_id},
+                    blocking=True,
+                )
 
-        # 4. Handle post-play tasks: re-assert shuffle and repeat after queue loaded, and handle seek
+        # 5. Handle post-play tasks: re-assert shuffle and repeat after queue loaded, and handle seek
         async def _post_play_setup() -> None:
             await asyncio.sleep(0.6)
             if shuffle is not None:

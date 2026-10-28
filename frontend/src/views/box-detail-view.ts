@@ -111,8 +111,8 @@ export class TonieESPBoxDetailView extends LitElement {
       box-sizing: border-box;
     }
 
-    /* DESKTOP & TABLET: Screen width >= 640px */
-    @media (min-width: 640px) {
+    /* DESKTOP & TABLET: Screen width >= 768px */
+    @media (min-width: 768px) {
       .container {
         padding: 24px;
       }

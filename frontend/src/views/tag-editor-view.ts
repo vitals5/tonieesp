@@ -384,8 +384,8 @@ export class TonieESPTagEditorView extends LitElement {
       color: var(--primary-text-color, #222);
     }
 
-    /* DESKTOP & TABLET: Screen width >= 640px */
-    @media (min-width: 640px) {
+    /* DESKTOP & TABLET: Screen width >= 768px */
+    @media (min-width: 768px) {
       .editor-card {
         padding: 24px;
       }
