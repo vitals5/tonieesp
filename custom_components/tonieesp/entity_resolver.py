@@ -334,8 +334,14 @@ class TonieBoxEntityResolver:
     def _resolve_ping_sensor(self, device_name: str) -> str | None:
         """Auto-detect ping binary sensor correlated with this Toniebox."""
         clean_dev = device_name.lower().replace("-", "_").replace(" ", "_") if device_name else ""
+        # Also clean parts: e.g. "kinderzimmer_benjamin" from "Kinderzimmer Benjamin Toniebox"
+        keywords = [k for k in clean_dev.split("_") if len(k) >= 3 and k != "box"]
         for state in self.hass.states.async_all("binary_sensor"):
             ent_id = state.entity_id.lower()
+            # If entity contains "tonie" or contains the clean device name
             if "tonie" in ent_id or (clean_dev and clean_dev in ent_id):
+                return state.entity_id
+            # Or if it matches multiple keywords from the device name and has "ping" in it
+            if "ping" in ent_id and any(kw in ent_id for kw in keywords):
                 return state.entity_id
         return None

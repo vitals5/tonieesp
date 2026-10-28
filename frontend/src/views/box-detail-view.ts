@@ -67,14 +67,20 @@ export class TonieESPBoxDetailView extends LitElement {
       gap: 16px;
     }
 
-    @media (max-width: 640px) {
+    @media (max-width: 768px), (max-width: 900px) and (orientation: portrait) {
       .container {
-        padding: 16px;
+        padding: 16px 12px;
       }
 
       .grid-2 {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
         gap: 12px;
+      }
+
+      .setting-group {
+        width: 100%;
+        min-width: 0;
       }
 
       .header-row {
@@ -86,6 +92,7 @@ export class TonieESPBoxDetailView extends LitElement {
       .header-row .btn-back {
         width: 100%;
         text-align: center;
+        box-sizing: border-box;
       }
 
       .actions-row {
@@ -95,6 +102,7 @@ export class TonieESPBoxDetailView extends LitElement {
       .actions-row .btn {
         width: 100%;
         text-align: center;
+        box-sizing: border-box;
       }
     }
 

@@ -104,6 +104,7 @@ class TonieESPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_ESPHOME_DEVICE_ID: dev_id,
                     CONF_NAME: name,
                     CONF_MUSIC_ASSISTANT_PLAYER: user_input.get(CONF_MUSIC_ASSISTANT_PLAYER),
+                    CONF_PING_BINARY_SENSOR: user_input.get(CONF_PING_BINARY_SENSOR),
                 },
             )
 
@@ -115,6 +116,9 @@ class TonieESPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_NAME): str,
                 vol.Optional(CONF_MUSIC_ASSISTANT_PLAYER): EntitySelector(
                     EntitySelectorConfig(domain="media_player")
+                ),
+                vol.Optional(CONF_PING_BINARY_SENSOR): EntitySelector(
+                    EntitySelectorConfig(domain="binary_sensor")
                 ),
             }
         )

@@ -7,7 +7,8 @@
         "data": {
           "esphome_device_id": "ESPHome-Gerät",
           "name": "Anzeigename (optional)",
-          "music_assistant_player": "Music-Assistant-Player (optional)"
+          "music_assistant_player": "Music-Assistant-Player (optional)",
+          "ping_binary_sensor": "Ping-Binärsensor (optional, für Online/Offline-Status)"
         }
       }
     },

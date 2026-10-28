@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -95,24 +96,47 @@ class MusicAssistantAdapter:
 
         if has_ma_action:
             _LOGGER.debug(
-                "Calling %s.play_media on %s (media_id=%s, media_type=%s)",
+                "Calling %s.play_media on %s (media_id=%s, media_type=%s, original_id=%s)",
                 domain,
                 player_entity_id,
                 effective_media_id,
                 effective_media_type,
+                media_id,
             )
+            # If playing a playlist and we have a specific track URI to resume, pass track_uri as media_id
             data: dict[str, Any] = {
                 "media_id": effective_media_id,
                 "media_type": effective_media_type,
                 "enqueue": enqueue,
             }
-            await self.hass.services.async_call(
-                domain,
-                "play_media",
-                service_data=data,
-                target={"entity_id": player_entity_id},
-                blocking=True,
-            )
+            try:
+                await self.hass.services.async_call(
+                    domain,
+                    "play_media",
+                    service_data=data,
+                    target={"entity_id": player_entity_id},
+                    blocking=True,
+                )
+            except Exception as err:
+                _LOGGER.warning(
+                    "%s.play_media failed with track_uri '%s' (%s), retrying with base media_id '%s'",
+                    domain,
+                    effective_media_id,
+                    err,
+                    media_id,
+                )
+                if effective_media_id != media_id:
+                    data["media_id"] = media_id
+                    data["media_type"] = media_type or MEDIA_TYPE_PLAYLIST
+                    await self.hass.services.async_call(
+                        domain,
+                        "play_media",
+                        service_data=data,
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+                else:
+                    raise
         else:
             # Fallback to standard media_player.play_media
             _LOGGER.debug(
@@ -388,6 +412,24 @@ class MusicAssistantAdapter:
                 except Exception:
                     pass
 
+        current_track_uri = None
+        mass_client = self._get_mass_client()
+        if mass_client and hasattr(mass_client, "player_queues"):
+            with contextlib.suppress(Exception):
+                # Check active queue for player
+                for queue in mass_client.player_queues:
+                    if getattr(queue, "current_item", None):
+                        q_player = getattr(queue, "active_source", None) or getattr(
+                            queue, "queue_id", None
+                        )
+                        if q_player and (
+                            q_player in player_entity_id or player_entity_id.endswith(str(q_player))
+                        ):
+                            item = queue.current_item
+                            if getattr(item, "uri", None):
+                                current_track_uri = item.uri
+                                break
+
         return {
             "entity_id": player_entity_id,
             "state": state.state,
@@ -398,7 +440,7 @@ class MusicAssistantAdapter:
             "image": state.attributes.get(ATTR_ENTITY_PICTURE, ""),
             "position": round(base_pos + max(0.0, elapsed), 1),
             "duration": float(state.attributes.get(ATTR_MEDIA_DURATION, 0.0) or 0.0),
-            "content_id": state.attributes.get(ATTR_MEDIA_CONTENT_ID, ""),
+            "content_id": current_track_uri or state.attributes.get(ATTR_MEDIA_CONTENT_ID, ""),
             "content_type": state.attributes.get(ATTR_MEDIA_CONTENT_TYPE, ""),
         }
 

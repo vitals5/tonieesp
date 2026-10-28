@@ -69,7 +69,8 @@ export class TonieESPPanel extends LitElement {
     .top-bar {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
+      gap: 16px;
       padding: 12px 24px;
       background: var(--card-background-color, #ffffff);
       border-bottom: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
@@ -88,6 +89,7 @@ export class TonieESPPanel extends LitElement {
       padding: 4px 8px;
       border-radius: 8px;
       transition: background 0.15s ease;
+      flex-shrink: 0;
     }
 
     .brand:hover {
@@ -95,10 +97,12 @@ export class TonieESPPanel extends LitElement {
     }
 
     .logo-img {
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       object-fit: contain;
       border-radius: 6px;
+      display: block;
+      cursor: pointer;
     }
 
     .brand-title {
@@ -121,6 +125,7 @@ export class TonieESPPanel extends LitElement {
     .nav-tabs {
       display: flex;
       gap: 4px;
+      margin-left: auto;
     }
 
     .nav-btn {
@@ -158,7 +163,7 @@ export class TonieESPPanel extends LitElement {
       box-sizing: border-box;
     }
 
-    @media (max-width: 640px) {
+    @media (max-width: 768px), (max-width: 900px) and (orientation: portrait) {
       .top-bar {
         padding: 8px 12px;
         flex-direction: column;
@@ -167,10 +172,12 @@ export class TonieESPPanel extends LitElement {
       }
 
       .brand {
-        justify-content: center;
+        align-self: flex-start;
+        justify-content: flex-start;
       }
 
       .nav-tabs {
+        margin-left: 0;
         overflow-x: auto;
         padding-bottom: 4px;
         justify-content: flex-start;
@@ -510,20 +517,14 @@ export class TonieESPPanel extends LitElement {
   }
 
   private _handleBrandClick(e: MouseEvent) {
-    // If user clicked the logo directly or on mobile, toggle Home Assistant sidebar menu
-    const target = e.target as HTMLElement;
-    if (target.closest(".logo-img") || target.closest(".menu-toggle-btn")) {
-      e.stopPropagation();
-      this.dispatchEvent(
-        new Event("hass-toggle-menu", {
-          bubbles: true,
-          composed: true,
-        })
-      );
-      return;
-    }
-    // Otherwise return to dashboard view
-    this._activeView = "dashboard";
+    // Clicking the logo or brand always dispatches the HA sidebar toggle event
+    e.stopPropagation();
+    this.dispatchEvent(
+      new CustomEvent("hass-toggle-menu", {
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   render() {

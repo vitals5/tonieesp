@@ -94,13 +94,18 @@ export class TonieESPTagEditorView extends LitElement {
       gap: 16px;
     }
 
-    @media (max-width: 640px) {
+    .full-width {
+      grid-column: span 2;
+    }
+
+    @media (max-width: 768px), (max-width: 900px) and (orientation: portrait) {
       .editor-card {
-        padding: 16px;
+        padding: 16px 12px;
       }
 
       .form-grid {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
         gap: 12px;
       }
 
@@ -108,12 +113,19 @@ export class TonieESPTagEditorView extends LitElement {
         grid-column: span 1;
       }
 
+      .form-group {
+        width: 100%;
+        min-width: 0;
+      }
+
       .uid-group {
         flex-direction: column;
+        align-items: stretch;
       }
 
       .media-search-group {
         flex-direction: column;
+        align-items: stretch;
       }
 
       .btn-search,
@@ -121,6 +133,7 @@ export class TonieESPTagEditorView extends LitElement {
         padding: 10px 14px;
         width: 100%;
         text-align: center;
+        box-sizing: border-box;
       }
 
       .footer-actions {
@@ -130,11 +143,8 @@ export class TonieESPTagEditorView extends LitElement {
       .footer-actions .btn {
         width: 100%;
         text-align: center;
+        box-sizing: border-box;
       }
-    }
-
-    .full-width {
-      grid-column: span 2;
     }
 
     .form-group {

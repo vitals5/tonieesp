@@ -189,6 +189,9 @@ class TonieBoxInstance:
             st = self.hass.states.get(ping_ent)
             if st and st.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
                 return st.state.lower() in ("on", "true", "connected")
+            # If ping sensor is specifically configured/resolved and unavailable, device is offline
+            if st and st.state == STATE_UNAVAILABLE:
+                return False
 
         # 2. Check ESPHome speaker entity
         speaker = self.speaker_entity
@@ -324,6 +327,10 @@ class TonieBoxInstance:
         speaker = self.speaker_entity
         if speaker and speaker not in tracked_entities:
             tracked_entities.append(speaker)
+
+        ma_player = self.ma_player_entity
+        if ma_player and ma_player not in tracked_entities:
+            tracked_entities.append(ma_player)
 
         if not tracked_entities:
             return
@@ -534,14 +541,29 @@ class TonieBoxDeviceManager:
 
         # 2. Match by device registry details (e.g. if event passed a device ID string or identifier)
         dev_reg = dr.async_get(self.hass)
-        ev_dev = dev_reg.async_get(esphome_device_id)
+        ev_dev = dev_reg.async_get(esphome_device_id) if esphome_device_id else None
         if ev_dev:
             for box in self._boxes.values():
                 b_dev = dev_reg.async_get(box.esphome_device_id)
-                if b_dev and (b_dev.id == ev_dev.id or (b_dev.name and b_dev.name == ev_dev.name)):
+                if b_dev and (
+                    b_dev.id == ev_dev.id
+                    or (b_dev.name and ev_dev.name and b_dev.name.lower() == ev_dev.name.lower())
+                ):
                     return box
 
-        # 3. If there is only one Toniebox configured in total, route the scan to it
+        # 3. Match by name or identifier in case device_id string is actually a name or partial ID
+        if esphome_device_id:
+            dev_str = str(esphome_device_id).lower()
+            for box in self._boxes.values():
+                b_dev = dev_reg.async_get(box.esphome_device_id)
+                if b_dev:
+                    if b_dev.name and dev_str in b_dev.name.lower():
+                        return box
+                    for identifier in b_dev.identifiers:
+                        if len(identifier) > 1 and dev_str in str(identifier[1]).lower():
+                            return box
+
+        # 4. If there is only one Toniebox configured in total, route the scan to it
         if len(self._boxes) == 1:
             return next(iter(self._boxes.values()))
 
