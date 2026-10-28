@@ -611,6 +611,14 @@ async def ws_handle_playback_control(
             uid = data.get("uid")
             if uid:
                 await box.async_handle_tag_scanned(uid)
+        elif action == "shuffle":
+            shuffle_val = bool(data.get("shuffle", True))
+            await ma.async_set_shuffle(
+                active_player, shuffle_val, fallback_entity_id=fallback_player
+            )
+        elif action == "repeat":
+            repeat_val = str(data.get("repeat", "off"))
+            await ma.async_set_repeat(active_player, repeat_val, fallback_entity_id=fallback_player)
         else:
             connection.send_error(msg["id"], "invalid_action", f"Unknown action {action}")
             return

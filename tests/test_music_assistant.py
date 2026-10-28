@@ -110,3 +110,77 @@ async def test_volume_clamping(hass):
 
     assert len(called_volumes) == 1
     assert called_volumes[0] == 0.70
+
+
+@pytest.mark.asyncio
+async def test_set_shuffle_and_repeat(hass):
+    """Test async_set_shuffle and async_set_repeat invoke the correct HA media_player services."""
+    adapter = MusicAssistantAdapter(hass)
+
+    called_services = []
+
+    def mock_service_handler(domain, service, data, target):
+        called_services.append((domain, service, data, target))
+
+    hass.services._services = {
+        "media_player": {
+            "shuffle_set": mock_service_handler,
+            "repeat_set": mock_service_handler,
+        }
+    }
+
+    # 1. Set shuffle to True
+    await adapter.async_set_shuffle("media_player.toniebox_ma", True)
+    assert len(called_services) == 1
+    assert called_services[0] == (
+        "media_player",
+        "shuffle_set",
+        {"shuffle": True},
+        {"entity_id": "media_player.toniebox_ma"},
+    )
+
+    # 2. Set repeat to "all"
+    await adapter.async_set_repeat("media_player.toniebox_ma", "all")
+    assert len(called_services) == 2
+    assert called_services[1] == (
+        "media_player",
+        "repeat_set",
+        {"repeat": "all"},
+        {"entity_id": "media_player.toniebox_ma"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_play_media_with_shuffle_preserves_full_playlist(hass):
+    """Test play_media with shuffle=True keeps full playlist/album and sets shuffle mode."""
+    adapter = MusicAssistantAdapter(hass)
+
+    called_services = []
+
+    def mock_service_handler(domain, service, data, target):
+        called_services.append((domain, service, data, target))
+
+    hass.services._services = {
+        "music_assistant": {"play_media": mock_service_handler},
+        "media_player": {"shuffle_set": mock_service_handler},
+    }
+
+    # Call async_play_media with shuffle=True and a track_uri that would otherwise narrow to single track
+    await adapter.async_play_media(
+        player_entity_id="media_player.box_1",
+        media_type="playlist",
+        media_id="spotify://playlist/great_hits",
+        track_uri="spotify://track/old_single_track",
+        shuffle=True,
+    )
+
+    # Verify shuffle_set was called with True
+    shuffle_calls = [c for c in called_services if c[1] == "shuffle_set"]
+    assert len(shuffle_calls) >= 1
+    assert shuffle_calls[0][2] == {"shuffle": True}
+
+    # Verify music_assistant.play_media was called with the FULL PLAYLIST, not the single track
+    play_calls = [c for c in called_services if c[1] == "play_media"]
+    assert len(play_calls) == 1
+    assert play_calls[0][2]["media_id"] == "spotify://playlist/great_hits"
+    assert play_calls[0][2]["media_type"] == "playlist"

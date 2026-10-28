@@ -17,6 +17,8 @@ from homeassistant.components.media_player import (
     ATTR_MEDIA_DURATION,
     ATTR_MEDIA_POSITION,
     ATTR_MEDIA_POSITION_UPDATED_AT,
+    ATTR_MEDIA_REPEAT,
+    ATTR_MEDIA_SHUFFLE,
     ATTR_MEDIA_TITLE,
     SERVICE_MEDIA_NEXT_TRACK,
     SERVICE_MEDIA_PAUSE,
@@ -26,6 +28,8 @@ from homeassistant.components.media_player import (
     SERVICE_MEDIA_SEEK,
     SERVICE_MEDIA_STOP,
     SERVICE_PLAY_MEDIA,
+    SERVICE_REPEAT_SET,
+    SERVICE_SHUFFLE_SET,
     SERVICE_VOLUME_SET,
 )
 from homeassistant.components.media_player import (
@@ -65,6 +69,9 @@ class MusicAssistantAdapter:
         volume_limit: float | None = None,
         track_uri: str | None = None,
         track_title: str | None = None,
+        shuffle: bool | None = None,
+        repeat: str | None = None,
+        fallback_player_id: str | None = None,
     ) -> None:
         """Start playing media on the targeted player."""
         if not player_entity_id:
@@ -80,7 +87,17 @@ class MusicAssistantAdapter:
                     await self.async_set_volume(player_entity_id, volume_limit)
                     await asyncio.sleep(0.15)
 
-        # 2. Prefer music_assistant.play_media service if registered
+        # 2. Configure shuffle & repeat on the player entity before playback starts
+        if shuffle is not None:
+            await self.async_set_shuffle(
+                player_entity_id, shuffle, fallback_entity_id=fallback_player_id
+            )
+        if repeat is not None:
+            await self.async_set_repeat(
+                player_entity_id, repeat, fallback_entity_id=fallback_player_id
+            )
+
+        # 3. Prefer music_assistant.play_media service if registered
         has_ma_action = self.hass.services.has_service(
             "music_assistant", "play_media"
         ) or self.hass.services.has_service("mass", "play_media")
@@ -91,17 +108,23 @@ class MusicAssistantAdapter:
             else "mass"
         )
 
-        effective_media_id = track_uri or media_id
-        effective_media_type = "track" if track_uri else (media_type or MEDIA_TYPE_PLAYLIST)
+        # If shuffle is enabled, queue the full playlist/album so tracks can be randomized
+        if shuffle:
+            effective_media_id = media_id
+            effective_media_type = media_type or MEDIA_TYPE_PLAYLIST
+        else:
+            effective_media_id = track_uri or media_id
+            effective_media_type = "track" if track_uri else (media_type or MEDIA_TYPE_PLAYLIST)
 
         if has_ma_action:
             _LOGGER.debug(
-                "Calling %s.play_media on %s (media_id=%s, media_type=%s, original_id=%s)",
+                "Calling %s.play_media on %s (media_id=%s, media_type=%s, original_id=%s, shuffle=%s)",
                 domain,
                 player_entity_id,
                 effective_media_id,
                 effective_media_type,
                 media_id,
+                shuffle,
             )
             # If playing a playlist and we have a specific track URI to resume, pass track_uri as media_id
             data: dict[str, Any] = {
@@ -140,10 +163,11 @@ class MusicAssistantAdapter:
         else:
             # Fallback to standard media_player.play_media
             _LOGGER.debug(
-                "Calling media_player.play_media on %s (content_id=%s, type=%s)",
+                "Calling media_player.play_media on %s (content_id=%s, type=%s, shuffle=%s)",
                 player_entity_id,
                 effective_media_id,
                 effective_media_type,
+                shuffle,
             )
             data = {
                 ATTR_MEDIA_CONTENT_ID: effective_media_id,
@@ -157,15 +181,24 @@ class MusicAssistantAdapter:
                 blocking=True,
             )
 
-        # 3. Handle resume position if requested
-        if resume_position and resume_position > 2.0:
+        # 4. Handle post-play tasks: re-assert shuffle and repeat after queue loaded, and handle seek
+        async def _post_play_setup() -> None:
+            await asyncio.sleep(0.6)
+            if shuffle is not None:
+                await self.async_set_shuffle(
+                    player_entity_id, shuffle, fallback_entity_id=fallback_player_id
+                )
+            if repeat is not None:
+                await self.async_set_repeat(
+                    player_entity_id, repeat, fallback_entity_id=fallback_player_id
+                )
+            if not shuffle and resume_position and resume_position > 2.0:
+                await asyncio.sleep(0.4)
+                await self.async_seek(
+                    player_entity_id, resume_position, fallback_entity_id=fallback_player_id
+                )
 
-            async def _delayed_seek() -> None:
-                # Wait briefly for track to begin loading
-                await asyncio.sleep(1.0)
-                await self.async_seek(player_entity_id, resume_position)
-
-            self.hass.async_create_task(_delayed_seek())
+        self.hass.async_create_task(_post_play_setup())
 
     async def async_play_pause(
         self, player_entity_id: str, fallback_entity_id: str | None = None
@@ -383,6 +416,50 @@ class MusicAssistantAdapter:
             except Exception as err:
                 _LOGGER.debug("set_volume failed on %s: %s", ent, err)
 
+    async def async_set_shuffle(
+        self,
+        player_entity_id: str,
+        shuffle: bool,
+        fallback_entity_id: str | None = None,
+    ) -> None:
+        """Set shuffle mode on player (media_player.shuffle_set)."""
+        entities = list(dict.fromkeys([e for e in (player_entity_id, fallback_entity_id) if e]))
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_SHUFFLE_SET,
+                    service_data={ATTR_MEDIA_SHUFFLE: bool(shuffle)},
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                _LOGGER.debug("Set shuffle=%s on %s", shuffle, ent)
+            except Exception as err:
+                _LOGGER.debug("shuffle_set failed on %s: %s", ent, err)
+
+    async def async_set_repeat(
+        self,
+        player_entity_id: str,
+        repeat: str,
+        fallback_entity_id: str | None = None,
+    ) -> None:
+        """Set repeat mode on player (media_player.repeat_set: off, one, all)."""
+        valid_modes = {"off", "one", "all"}
+        mode = repeat.lower() if repeat and repeat.lower() in valid_modes else "off"
+        entities = list(dict.fromkeys([e for e in (player_entity_id, fallback_entity_id) if e]))
+        for ent in entities:
+            try:
+                await self.hass.services.async_call(
+                    MEDIA_PLAYER_DOMAIN,
+                    SERVICE_REPEAT_SET,
+                    service_data={ATTR_MEDIA_REPEAT: mode},
+                    target={"entity_id": ent},
+                    blocking=True,
+                )
+                _LOGGER.debug("Set repeat=%s on %s", mode, ent)
+            except Exception as err:
+                _LOGGER.debug("repeat_set failed on %s: %s", mode, err)
+
     def get_player_state(self, player_entity_id: str) -> dict[str, Any]:
         """Fetch current playback snapshot from player state."""
         state = self.hass.states.get(player_entity_id) if player_entity_id else None
@@ -397,6 +474,8 @@ class MusicAssistantAdapter:
                 "image": "",
                 "position": 0.0,
                 "duration": 0.0,
+                "shuffle": False,
+                "repeat": "off",
             }
 
         base_pos = float(state.attributes.get(ATTR_MEDIA_POSITION, 0.0) or 0.0)
@@ -442,6 +521,8 @@ class MusicAssistantAdapter:
             "duration": float(state.attributes.get(ATTR_MEDIA_DURATION, 0.0) or 0.0),
             "content_id": current_track_uri or state.attributes.get(ATTR_MEDIA_CONTENT_ID, ""),
             "content_type": state.attributes.get(ATTR_MEDIA_CONTENT_TYPE, ""),
+            "shuffle": bool(state.attributes.get(ATTR_MEDIA_SHUFFLE, False)),
+            "repeat": state.attributes.get(ATTR_MEDIA_REPEAT, "off"),
         }
 
     async def async_search_media(

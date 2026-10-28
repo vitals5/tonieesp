@@ -1,6 +1,6 @@
 [project]
 name = "tonieesp"
-version = "1.0.5"
+version = "1.0.6"
 description = "TonieESP - Home Assistant Custom Integration for ESPHome Toniebox with Music Assistant"
 readme = "README.md"
 license = { text = "MIT" }

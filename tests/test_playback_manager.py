@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.tonieesp.playback_manager import PlaybackManager
+from custom_components.tonieesp.playback_manager import PlaybackManager, PlaybackSession
 
 
 @pytest.fixture
@@ -133,3 +133,43 @@ async def test_box_isolated_playback_progress(hass, mock_storage, mock_ma_adapte
         "box_kinderzimmer", "media_player.kz", "TAG_BOOK", media, settings
     )
     assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] == 320.0
+
+
+@pytest.mark.asyncio
+async def test_playback_shuffle_passes_settings_and_starts_fresh(
+    hass, mock_storage, mock_ma_adapter
+):
+    """Test tags with shuffle=True pass shuffle=True and start whole playlist fresh without saved track resume."""
+    pm = PlaybackManager(hass, mock_storage, mock_ma_adapter)
+    await pm.async_load()
+
+    media = {"media_id": "playlist_hits", "media_type": "playlist"}
+    settings = {"shuffle": True, "repeat": "all", "resume": True}
+
+    # Simulate a prior persistent session
+    pm._persistent_sessions["box_1_TAG_SHUFFLE"] = PlaybackSession(
+        box_id="box_1",
+        tag_uid="TAG_SHUFFLE",
+        media_source="music_assistant",
+        media_type="playlist",
+        media_id="playlist_hits",
+        queue_item_id=None,
+        position=89.0,
+        duration=3000.0,
+        updated_at=time.time() - 500.0,
+        was_paused_by_removal=False,
+        completed=False,
+        track_title="Old Single Track",
+        track_uri="spotify://track/old_single_track",
+    )
+
+    # Place tag on box
+    await pm.async_handle_tag_placed("box_1", "media_player.box_1", "TAG_SHUFFLE", media, settings)
+
+    call_kwargs = mock_ma_adapter.async_play_media.call_args[1]
+    # Shuffle & repeat passed
+    assert call_kwargs["shuffle"] is True
+    assert call_kwargs["repeat"] == "all"
+    # Starting whole playlist fresh, not locked into the old track
+    assert call_kwargs["resume_position"] is None
+    assert call_kwargs["track_uri"] is None

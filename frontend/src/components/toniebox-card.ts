@@ -205,6 +205,11 @@ export class TonieESPBoxCard extends LitElement {
       background: rgba(0, 0, 0, 0.12);
     }
 
+    .btn-ctrl.active {
+      background: var(--primary-color, #03a9f4);
+      color: #fff;
+    }
+
     .btn-play {
       background: var(--primary-color, #03a9f4);
       color: #fff;
@@ -382,6 +387,13 @@ export class TonieESPBoxCard extends LitElement {
                 @click=${() => this._onControl("next")}
               >
                 ⏭
+              </button>
+              <button
+                class="btn-ctrl ${pb.shuffle ? "active" : ""}"
+                title=${localize("editor.shuffle", this.lang)}
+                @click=${() => this._onControl("shuffle", { shuffle: !pb.shuffle })}
+              >
+                🔀
               </button>
             </div>
 

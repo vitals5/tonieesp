@@ -18,6 +18,10 @@ export interface PlaybackState {
   image: string;
   position: number;
   duration: number;
+  content_id?: string;
+  content_type?: string;
+  shuffle?: boolean;
+  repeat?: "off" | "one" | "all" | string;
 }
 
 export interface BoxSettings {

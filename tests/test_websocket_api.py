@@ -187,6 +187,25 @@ async def test_ws_playback_control(hass, mock_coordinator, mock_connection):
     )
     mock_connection.send_result.assert_called_once_with(2, {"status": "ok"})
 
+    # Shuffle
+    mock_coordinator.ma_adapter.async_set_shuffle = AsyncMock()
+    mock_connection.send_result.reset_mock()
+    await unwrap(ws_handle_playback_control)(
+        hass,
+        mock_connection,
+        {
+            "id": 3,
+            "type": "tonieesp/playback/control",
+            "box_id": "box_1",
+            "action": "shuffle",
+            "data": {"shuffle": True},
+        },
+    )
+    mock_coordinator.ma_adapter.async_set_shuffle.assert_called_once_with(
+        "media_player.box_player", True, fallback_entity_id="media_player.box_speaker"
+    )
+    mock_connection.send_result.assert_called_once_with(3, {"status": "ok"})
+
 
 @pytest.mark.asyncio
 async def test_ws_media_browse_images(hass, mock_connection, tmp_path):

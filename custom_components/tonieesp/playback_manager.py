@@ -136,6 +136,7 @@ class PlaybackManager:
         tag_uid: str,
         media_info: dict[str, Any],
         tag_settings: dict[str, Any],
+        fallback_player_id: str | None = None,
     ) -> None:
         """Handle tag placed on a Toniebox."""
         if self.is_duplicate_scan(box_id, tag_uid):
@@ -146,6 +147,8 @@ class PlaybackManager:
         media_source = media_info.get("provider", "music_assistant")
         volume_limit = tag_settings.get("volume_limit")
         resume_enabled = tag_settings.get("resume", True)
+        shuffle_enabled = bool(tag_settings.get("shuffle", False))
+        repeat_mode = str(tag_settings.get("repeat", "off"))
 
         if not media_id:
             _LOGGER.warning("Tag %s has no media assigned, cannot start playback", tag_uid)
@@ -175,7 +178,8 @@ class PlaybackManager:
                 active.updated_at = now
 
         # 2. Check persistent progress for this tag on THIS SPECIFIC BOX (independent child/box progress)
-        if resume_position is None and resume_enabled:
+        # Note: If shuffle is enabled, we start the playlist shuffled from scratch instead of locking into a saved track
+        if resume_position is None and resume_enabled and not shuffle_enabled:
             box_tag_key = make_session_key(box_id, tag_uid)
             saved_sess = self._persistent_sessions.get(box_tag_key)
             if saved_sess and not saved_sess.completed:
@@ -202,6 +206,9 @@ class PlaybackManager:
             volume_limit=volume_limit,
             track_uri=resume_track_uri,
             track_title=resume_track_title,
+            shuffle=shuffle_enabled,
+            repeat=repeat_mode,
+            fallback_player_id=fallback_player_id,
         )
 
         # Update active session

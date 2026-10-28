@@ -376,6 +376,9 @@ class TonieBoxInstance:
             self.on_state_change(self)
 
             player = self.ma_player_entity or self.speaker_entity
+            fallback = (
+                self.speaker_entity if player == self.ma_player_entity else self.ma_player_entity
+            )
             if player:
                 await self.playback_manager.async_handle_tag_placed(
                     box_id=self.entry_id,
@@ -383,6 +386,7 @@ class TonieBoxInstance:
                     tag_uid=uid,
                     media_info=effective.get("media", {}),
                     tag_settings=effective.get("settings", {}),
+                    fallback_player_id=fallback,
                 )
             else:
                 _LOGGER.warning(
