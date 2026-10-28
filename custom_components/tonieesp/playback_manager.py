@@ -38,6 +38,8 @@ class PlaybackSession:
     updated_at: float
     was_paused_by_removal: bool
     completed: bool = False
+    track_title: str | None = None
+    track_uri: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert session to dictionary."""
@@ -58,6 +60,8 @@ class PlaybackSession:
             updated_at=float(data.get("updated_at", 0.0)),
             was_paused_by_removal=bool(data.get("was_paused_by_removal", False)),
             completed=bool(data.get("completed", False)),
+            track_title=data.get("track_title"),
+            track_uri=data.get("track_uri"),
         )
 
 
@@ -149,6 +153,8 @@ class PlaybackManager:
 
         now = time.time()
         resume_position: float | None = None
+        resume_track_uri: str | None = None
+        resume_track_title: str | None = None
 
         # 1. Check active short-term session on this box
         active = self._active_sessions.get(box_id)
@@ -156,12 +162,15 @@ class PlaybackManager:
             if (now - active.updated_at) < SHORT_TERM_RESUME_MAX_AGE:
                 # Same tag returned to same box after pause
                 _LOGGER.info(
-                    "Resuming short-term paused tag %s on box %s at position %.1fs",
+                    "Resuming short-term paused tag %s on box %s at position %.1fs (track: %s)",
                     tag_uid,
                     box_id,
                     active.position,
+                    active.track_title,
                 )
                 resume_position = active.position
+                resume_track_uri = active.track_uri
+                resume_track_title = active.track_title
                 active.was_paused_by_removal = False
                 active.updated_at = now
 
@@ -170,14 +179,19 @@ class PlaybackManager:
             box_tag_key = make_session_key(box_id, tag_uid)
             saved_sess = self._persistent_sessions.get(box_tag_key)
             if saved_sess and not saved_sess.completed:
-                if saved_sess.media_id == media_id and saved_sess.position > 5.0:
+                if saved_sess.media_id == media_id and (
+                    saved_sess.position > 5.0 or saved_sess.track_uri
+                ):
                     _LOGGER.info(
-                        "Found persistent progress for tag %s on box %s: resuming at %.1fs",
+                        "Found persistent progress for tag %s on box %s: resuming at %.1fs (track: %s)",
                         tag_uid,
                         box_id,
                         saved_sess.position,
+                        saved_sess.track_title,
                     )
                     resume_position = saved_sess.position
+                    resume_track_uri = saved_sess.track_uri
+                    resume_track_title = saved_sess.track_title
 
         # Start playback
         await self.ma_adapter.async_play_media(
@@ -186,6 +200,8 @@ class PlaybackManager:
             media_id=media_id,
             resume_position=resume_position,
             volume_limit=volume_limit,
+            track_uri=resume_track_uri,
+            track_title=resume_track_title,
         )
 
         # Update active session
@@ -201,6 +217,8 @@ class PlaybackManager:
             updated_at=now,
             was_paused_by_removal=False,
             completed=False,
+            track_title=resume_track_title,
+            track_uri=resume_track_uri,
         )
         self._active_sessions[box_id] = session
 
@@ -222,10 +240,14 @@ class PlaybackManager:
         player_state = self.ma_adapter.get_player_state(player_entity_id)
         current_pos = player_state.get("position", active.position)
         duration = player_state.get("duration", active.duration)
+        track_title = player_state.get("title") or active.track_title
+        track_uri = player_state.get("content_id") or active.track_uri
 
         now = time.time()
         active.position = current_pos
         active.duration = duration
+        active.track_title = track_title
+        active.track_uri = track_uri
         active.updated_at = now
         active.was_paused_by_removal = True
 
@@ -248,6 +270,8 @@ class PlaybackManager:
             updated_at=now,
             was_paused_by_removal=True,
             completed=active.completed,
+            track_title=active.track_title,
+            track_uri=active.track_uri,
         )
         await self.async_save()
 

@@ -90,8 +90,47 @@ export class TonieESPTagEditorView extends LitElement {
 
     .form-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .editor-card {
+        padding: 16px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .full-width {
+        grid-column: span 1;
+      }
+
+      .uid-group {
+        flex-direction: column;
+      }
+
+      .media-search-group {
+        flex-direction: column;
+      }
+
+      .btn-search,
+      .btn-scan {
+        padding: 10px 14px;
+        width: 100%;
+        text-align: center;
+      }
+
+      .footer-actions {
+        flex-direction: column-reverse;
+      }
+
+      .footer-actions .btn {
+        width: 100%;
+        text-align: center;
+      }
     }
 
     .full-width {

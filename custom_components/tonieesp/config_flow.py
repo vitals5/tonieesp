@@ -41,6 +41,7 @@ from .const import (
     CONF_MUSIC_ASSISTANT_PLAYER,
     CONF_NAME,
     CONF_PAUSE_ON_REMOVAL,
+    CONF_PING_BINARY_SENSOR,
     CONF_RESUME_ON_REPLACE,
     CONF_RIGHT_TAP_ACTION,
     CONF_RIGHT_TILT_ACTION,
@@ -146,6 +147,10 @@ class TonieESPOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_MUSIC_ASSISTANT_PLAYER,
             self.config_entry.data.get(CONF_MUSIC_ASSISTANT_PLAYER),
         )
+        current_ping = options.get(
+            CONF_PING_BINARY_SENSOR,
+            self.config_entry.data.get(CONF_PING_BINARY_SENSOR),
+        )
 
         schema = vol.Schema(
             {
@@ -153,6 +158,10 @@ class TonieESPOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_MUSIC_ASSISTANT_PLAYER,
                     description={"suggested_value": current_ma},
                 ): EntitySelector(EntitySelectorConfig(domain="media_player")),
+                vol.Optional(
+                    CONF_PING_BINARY_SENSOR,
+                    description={"suggested_value": current_ping},
+                ): EntitySelector(EntitySelectorConfig(domain="binary_sensor")),
                 vol.Optional(
                     CONF_PAUSE_ON_REMOVAL,
                     default=options.get(CONF_PAUSE_ON_REMOVAL, DEFAULT_PAUSE_ON_REMOVAL),

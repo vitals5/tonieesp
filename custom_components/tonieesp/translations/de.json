@@ -24,6 +24,7 @@
         "title": "TonieESP Einstellungen",
         "data": {
           "music_assistant_player": "Music-Assistant-Player",
+          "ping_binary_sensor": "Ping-Binärsensor (Online/Offline Status)",
           "pause_on_removal": "Wiedergabe beim Abnehmen pausieren",
           "resume_on_replace": "Wiedergabe beim Aufsetzen fortsetzen",
           "max_volume": "Maximale Lautstärke (0.1 - 1.0)",

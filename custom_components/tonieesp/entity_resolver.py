@@ -26,6 +26,7 @@ class TonieBoxEntityResolver:
         configured_ma_player: str | None = None,
         configured_speaker: str | None = None,
         configured_nfc_sensor: str | None = None,
+        configured_ping_binary_sensor: str | None = None,
     ) -> None:
         """Initialize the entity resolver."""
         self.hass = hass
@@ -33,11 +34,13 @@ class TonieBoxEntityResolver:
         self.configured_ma_player = configured_ma_player
         self.configured_speaker = configured_speaker
         self.configured_nfc_sensor = configured_nfc_sensor
+        self.configured_ping_binary_sensor = configured_ping_binary_sensor
 
         self._resolved: dict[str, str | None] = {
             "speaker": configured_speaker,
             "ma_player": configured_ma_player,
             "nfc_sensor": configured_nfc_sensor,
+            "ping_sensor": configured_ping_binary_sensor,
             "battery": None,
             "battery_voltage": None,
             "charging": None,
@@ -65,6 +68,11 @@ class TonieBoxEntityResolver:
     def nfc_sensor(self) -> str | None:
         """NFC Tag UID sensor entity ID."""
         return self._resolved.get("nfc_sensor")
+
+    @property
+    def ping_sensor(self) -> str | None:
+        """Ping binary sensor entity ID for box online/offline state."""
+        return self._resolved.get("ping_sensor")
 
     @property
     def battery(self) -> str | None:
@@ -256,9 +264,13 @@ class TonieBoxEntityResolver:
         # Resolve Music Assistant player
         found_ma_player = self._resolve_ma_player(device_name, found_speaker)
 
+        # Resolve ping binary sensor if configured or auto-detected by matching box name
+        found_ping = self.configured_ping_binary_sensor or self._resolve_ping_sensor(device_name)
+
         self._resolved["speaker"] = found_speaker
         self._resolved["ma_player"] = found_ma_player or found_speaker
         self._resolved["nfc_sensor"] = found_nfc
+        self._resolved["ping_sensor"] = found_ping
         self._resolved["battery"] = found_battery
         self._resolved["battery_voltage"] = found_battery_voltage
         self._resolved["charging"] = found_charging
@@ -317,4 +329,13 @@ class TonieBoxEntityResolver:
             if self.hass.states.get(candidate_suffix_2):
                 return candidate_suffix_2
 
+        return None
+
+    def _resolve_ping_sensor(self, device_name: str) -> str | None:
+        """Auto-detect ping binary sensor correlated with this Toniebox."""
+        clean_dev = device_name.lower().replace("-", "_").replace(" ", "_") if device_name else ""
+        for state in self.hass.states.async_all("binary_sensor"):
+            ent_id = state.entity_id.lower()
+            if "tonie" in ent_id or (clean_dev and clean_dev in ent_id):
+                return state.entity_id
         return None

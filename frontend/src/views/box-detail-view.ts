@@ -63,8 +63,39 @@ export class TonieESPBoxDetailView extends LitElement {
 
     .grid-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        padding: 16px;
+      }
+
+      .grid-2 {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .header-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .header-row .btn-back {
+        width: 100%;
+        text-align: center;
+      }
+
+      .actions-row {
+        flex-direction: column-reverse;
+      }
+
+      .actions-row .btn {
+        width: 100%;
+        text-align: center;
+      }
     }
 
     .setting-group {

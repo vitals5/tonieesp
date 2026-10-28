@@ -10,6 +10,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
@@ -23,6 +24,7 @@ from .const import (
     CONF_NAME,
     CONF_NFC_SENSOR_ENTITY,
     CONF_PAUSE_ON_REMOVAL,
+    CONF_PING_BINARY_SENSOR,
     CONF_RESUME_ON_REPLACE,
     CONF_RIGHT_TAP_ACTION,
     CONF_RIGHT_TILT_ACTION,
@@ -79,6 +81,8 @@ class TonieBoxInstance:
             or entry.data.get(CONF_MEDIA_PLAYER_ENTITY),
             configured_nfc_sensor=entry.options.get(CONF_NFC_SENSOR_ENTITY)
             or entry.data.get(CONF_NFC_SENSOR_ENTITY),
+            configured_ping_binary_sensor=entry.options.get(CONF_PING_BINARY_SENSOR)
+            or entry.data.get(CONF_PING_BINARY_SENSOR),
         )
 
         # Settings
@@ -178,12 +182,29 @@ class TonieBoxInstance:
         return self.resolver.nfc_sensor
 
     def is_online(self) -> bool:
-        """Check if Toniebox is online based on entities."""
+        """Check if Toniebox is online based on entities (ping sensor or speaker/device state)."""
+        # 1. Prefer ping binary sensor if available
+        ping_ent = self.resolver.ping_sensor
+        if ping_ent:
+            st = self.hass.states.get(ping_ent)
+            if st and st.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                return st.state.lower() in ("on", "true", "connected")
+
+        # 2. Check ESPHome speaker entity
         speaker = self.speaker_entity
-        if not speaker:
-            return False
-        state = self.hass.states.get(speaker)
-        return state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+        if speaker:
+            state = self.hass.states.get(speaker)
+            if state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                return True
+
+        # 3. Check any resolved sensor from this ESPHome device
+        for ent in (self.resolver.battery, self.resolver.battery_voltage, self.resolver.nfc_sensor):
+            if ent:
+                st = self.hass.states.get(ent)
+                if st and st.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+                    return True
+
+        return False
 
     def get_battery_info(self) -> dict[str, Any]:
         """Fetch battery status and voltage."""
@@ -286,32 +307,49 @@ class TonieBoxInstance:
         self.on_state_change(self)
 
     def _setup_nfc_sensor_tracking(self) -> None:
-        """Subscribe to NFC sensor state changes to detect removal and replacement."""
+        """Subscribe to NFC sensor and Ping/status state changes to track device state in real time."""
         for unsub in self._unsub_trackers:
             unsub()
         self._unsub_trackers.clear()
 
+        tracked_entities: list[str] = []
         nfc_sensor = self.nfc_sensor_entity
-        if not nfc_sensor:
+        if nfc_sensor:
+            tracked_entities.append(nfc_sensor)
+
+        ping_sensor = self.resolver.ping_sensor
+        if ping_sensor:
+            tracked_entities.append(ping_sensor)
+
+        speaker = self.speaker_entity
+        if speaker and speaker not in tracked_entities:
+            tracked_entities.append(speaker)
+
+        if not tracked_entities:
             return
 
         @callback
-        def _nfc_state_listener(event: Event) -> None:
+        def _entity_state_listener(event: Event) -> None:
+            entity_id = event.data.get("entity_id")
             new_state = event.data.get("new_state")
             if not new_state:
                 return
-            state_val = str(new_state.state).strip().lower()
 
-            if state_val == "none":
-                # Tag removed
-                self.hass.async_create_task(self.async_handle_tag_removed())
-            elif is_valid_uid(normalize_uid(state_val)):
-                # Tag placed (detected via sensor state update)
-                uid = normalize_uid(state_val)
-                self.hass.async_create_task(self.async_handle_tag_scanned(uid))
+            if entity_id == nfc_sensor:
+                state_val = str(new_state.state).strip().lower()
+                if state_val == "none":
+                    # Tag removed
+                    self.hass.async_create_task(self.async_handle_tag_removed())
+                elif is_valid_uid(normalize_uid(state_val)):
+                    # Tag placed (detected via sensor state update)
+                    uid = normalize_uid(state_val)
+                    self.hass.async_create_task(self.async_handle_tag_scanned(uid))
+            else:
+                # Online status or speaker state changed
+                self.on_state_change(self)
 
         self._unsub_trackers.append(
-            async_track_state_change_event(self.hass, [nfc_sensor], _nfc_state_listener)
+            async_track_state_change_event(self.hass, tracked_entities, _entity_state_listener)
         )
 
     async def async_handle_tag_scanned(self, uid: str) -> None:
@@ -330,7 +368,7 @@ class TonieBoxInstance:
             self.unknown_tag = None
             self.on_state_change(self)
 
-            player = self.ma_player_entity
+            player = self.ma_player_entity or self.speaker_entity
             if player:
                 await self.playback_manager.async_handle_tag_placed(
                     box_id=self.entry_id,
@@ -338,6 +376,10 @@ class TonieBoxInstance:
                     tag_uid=uid,
                     media_info=effective.get("media", {}),
                     tag_settings=effective.get("settings", {}),
+                )
+            else:
+                _LOGGER.warning(
+                    "Tag %s placed on Toniebox '%s' but no player entity resolved", uid, self.name
                 )
         else:
             # Unknown tag
@@ -356,7 +398,7 @@ class TonieBoxInstance:
         self.unknown_tag = None
         self.on_state_change(self)
 
-        player = self.ma_player_entity
+        player = self.ma_player_entity or self.speaker_entity
         if player:
             await self.playback_manager.async_handle_tag_removed(
                 box_id=self.entry_id,
@@ -386,6 +428,9 @@ class TonieBoxInstance:
             self.right_tilt_action = str(options[CONF_RIGHT_TILT_ACTION])
         if CONF_MUSIC_ASSISTANT_PLAYER in options:
             self.resolver.configured_ma_player = options[CONF_MUSIC_ASSISTANT_PLAYER]
+            self.resolver.resolve_entities()
+        if CONF_PING_BINARY_SENSOR in options:
+            self.resolver.configured_ping_binary_sensor = options[CONF_PING_BINARY_SENSOR]
             self.resolver.resolve_entities()
 
         self.on_state_change(self)
@@ -481,10 +526,25 @@ class TonieBoxDeviceManager:
         return self._boxes.get(entry_id)
 
     def get_box_by_esphome_device_id(self, esphome_device_id: str) -> TonieBoxInstance | None:
-        """Get Toniebox instance by ESPHome device registry ID."""
+        """Get Toniebox instance by ESPHome device registry ID or entity ID/name match."""
+        # 1. Exact match by configured esphome_device_id
         for box in self._boxes.values():
             if box.esphome_device_id == esphome_device_id:
                 return box
+
+        # 2. Match by device registry details (e.g. if event passed a device ID string or identifier)
+        dev_reg = dr.async_get(self.hass)
+        ev_dev = dev_reg.async_get(esphome_device_id)
+        if ev_dev:
+            for box in self._boxes.values():
+                b_dev = dev_reg.async_get(box.esphome_device_id)
+                if b_dev and (b_dev.id == ev_dev.id or (b_dev.name and b_dev.name == ev_dev.name)):
+                    return box
+
+        # 3. If there is only one Toniebox configured in total, route the scan to it
+        if len(self._boxes) == 1:
+            return next(iter(self._boxes.values()))
+
         return None
 
     def list_boxes(self) -> list[dict[str, Any]]:

@@ -62,6 +62,8 @@ class MusicAssistantAdapter:
         resume_position: float | None = None,
         enqueue: str = "play",
         volume_limit: float | None = None,
+        track_uri: str | None = None,
+        track_title: str | None = None,
     ) -> None:
         """Start playing media on the targeted player."""
         if not player_entity_id:
@@ -88,17 +90,20 @@ class MusicAssistantAdapter:
             else "mass"
         )
 
+        effective_media_id = track_uri or media_id
+        effective_media_type = "track" if track_uri else (media_type or MEDIA_TYPE_PLAYLIST)
+
         if has_ma_action:
             _LOGGER.debug(
                 "Calling %s.play_media on %s (media_id=%s, media_type=%s)",
                 domain,
                 player_entity_id,
-                media_id,
-                media_type,
+                effective_media_id,
+                effective_media_type,
             )
             data: dict[str, Any] = {
-                "media_id": media_id,
-                "media_type": media_type or MEDIA_TYPE_PLAYLIST,
+                "media_id": effective_media_id,
+                "media_type": effective_media_type,
                 "enqueue": enqueue,
             }
             await self.hass.services.async_call(
@@ -113,12 +118,12 @@ class MusicAssistantAdapter:
             _LOGGER.debug(
                 "Calling media_player.play_media on %s (content_id=%s, type=%s)",
                 player_entity_id,
-                media_id,
-                media_type,
+                effective_media_id,
+                effective_media_type,
             )
             data = {
-                ATTR_MEDIA_CONTENT_ID: media_id,
-                ATTR_MEDIA_CONTENT_TYPE: media_type or MEDIA_TYPE_PLAYLIST,
+                ATTR_MEDIA_CONTENT_ID: effective_media_id,
+                ATTR_MEDIA_CONTENT_TYPE: effective_media_type,
             }
             await self.hass.services.async_call(
                 MEDIA_PLAYER_DOMAIN,
@@ -393,6 +398,8 @@ class MusicAssistantAdapter:
             "image": state.attributes.get(ATTR_ENTITY_PICTURE, ""),
             "position": round(base_pos + max(0.0, elapsed), 1),
             "duration": float(state.attributes.get(ATTR_MEDIA_DURATION, 0.0) or 0.0),
+            "content_id": state.attributes.get(ATTR_MEDIA_CONTENT_ID, ""),
+            "content_type": state.attributes.get(ATTR_MEDIA_CONTENT_TYPE, ""),
         }
 
     async def async_search_media(

@@ -24,6 +24,7 @@
         "title": "TonieESP Settings",
         "data": {
           "music_assistant_player": "Music Assistant Player",
+          "ping_binary_sensor": "Ping Binary Sensor (Online/Offline Status)",
           "pause_on_removal": "Pause playback when tag is removed",
           "resume_on_replace": "Resume playback when tag is replaced",
           "max_volume": "Maximum Volume (0.1 - 1.0)",

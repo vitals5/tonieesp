@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { TonieESPWebSocketAPI } from "./api/websocket";
 import { EventLogItem, NFCTag, TonieBox } from "./types";
 import { localize } from "./localize";
+import { TONIEESP_ICON } from "./icon-base64";
 
 // Import Views
 import "./views/dashboard-view";
@@ -82,10 +83,22 @@ export class TonieESPPanel extends LitElement {
       align-items: center;
       gap: 10px;
       cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      padding: 4px 8px;
+      border-radius: 8px;
+      transition: background 0.15s ease;
     }
 
-    .logo {
-      font-size: 26px;
+    .brand:hover {
+      background: var(--secondary-background-color, rgba(0, 0, 0, 0.05));
+    }
+
+    .logo-img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      border-radius: 6px;
     }
 
     .brand-title {
@@ -123,6 +136,7 @@ export class TonieESPPanel extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      white-space: nowrap;
     }
 
     .nav-btn:hover {
@@ -142,6 +156,36 @@ export class TonieESPPanel extends LitElement {
       width: 100%;
       margin: 0 auto;
       box-sizing: border-box;
+    }
+
+    @media (max-width: 640px) {
+      .top-bar {
+        padding: 8px 12px;
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+      }
+
+      .brand {
+        justify-content: center;
+      }
+
+      .nav-tabs {
+        overflow-x: auto;
+        padding-bottom: 4px;
+        justify-content: flex-start;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .nav-btn {
+        padding: 6px 10px;
+        font-size: 13px;
+        flex-shrink: 0;
+      }
+
+      .content-area {
+        padding: 12px;
+      }
     }
 
     /* Learning Modal */
@@ -465,12 +509,29 @@ export class TonieESPPanel extends LitElement {
     this._activeView = "editor";
   }
 
+  private _handleBrandClick(e: MouseEvent) {
+    // If user clicked the logo directly or on mobile, toggle Home Assistant sidebar menu
+    const target = e.target as HTMLElement;
+    if (target.closest(".logo-img") || target.closest(".menu-toggle-btn")) {
+      e.stopPropagation();
+      this.dispatchEvent(
+        new Event("hass-toggle-menu", {
+          bubbles: true,
+          composed: true,
+        })
+      );
+      return;
+    }
+    // Otherwise return to dashboard view
+    this._activeView = "dashboard";
+  }
+
   render() {
     return html`
       <!-- Top Navigation Bar -->
       <header class="top-bar">
-        <div class="brand" @click=${() => (this._activeView = "dashboard")}>
-          <span class="logo">📻</span>
+        <div class="brand" @click=${this._handleBrandClick} title="TonieESP (Klick auf Logo öffnet HA-Seitenleiste)">
+          <img class="logo-img" src="${TONIEESP_ICON}" alt="TonieESP" />
           <span class="brand-title">TonieESP</span>
           <span class="brand-badge">PRO</span>
         </div>

@@ -111,15 +111,21 @@ class TonieESPEventHandler:
     async def _handle_tag_scanned_event(self, event: Event) -> None:
         """Process incoming tag_scanned event."""
         data = event.data
-        raw_tag_id = data.get("tag_id")
+        raw_tag_id = data.get("tag_id") or data.get("tag") or data.get("uid")
         device_id = data.get("device_id")
 
-        if not raw_tag_id or not device_id:
+        if not raw_tag_id:
             return
 
-        box = self.device_manager.get_box_by_esphome_device_id(device_id)
+        box = self.device_manager.get_box_by_esphome_device_id(device_id) if device_id else None
         if not box:
-            # Event does not belong to any configured Toniebox
+            # Fallback if only 1 box is registered
+            boxes = self.device_manager.list_boxes()
+            if len(boxes) == 1:
+                box = self.device_manager.get_box(boxes[0]["id"])
+
+        if not box:
+            _LOGGER.debug("Received tag_scanned for %s but no matching Toniebox found", raw_tag_id)
             return
 
         uid = normalize_uid(str(raw_tag_id))
