@@ -159,8 +159,8 @@ class PlaybackManager:
         resume_track_uri: str | None = None
         resume_track_title: str | None = None
 
-        # Check resume options ONLY if resume is enabled and shuffle is disabled
-        if resume_enabled and not shuffle_enabled:
+        # Check resume options if resume is enabled (supports both sequential and shuffle resume)
+        if resume_enabled:
             # 1. Check active short-term session on this box
             active = self._active_sessions.get(box_id)
             if active and active.tag_uid == tag_uid and active.was_paused_by_removal:
@@ -169,12 +169,17 @@ class PlaybackManager:
                     player_state = self.ma_adapter.get_player_state(player_entity_id)
                     if player_state.get("state") == "paused":
                         _LOGGER.info(
-                            "Resuming paused playback for tag %s on box %s",
+                            "Resuming paused playback for tag %s on box %s (shuffle=%s)",
                             tag_uid,
                             box_id,
+                            shuffle_enabled,
                         )
                         active.was_paused_by_removal = False
                         active.updated_at = now
+                        if shuffle_enabled:
+                            await self.ma_adapter.async_set_shuffle(
+                                player_entity_id, True, fallback_entity_id=fallback_player_id
+                            )
                         await self.ma_adapter.async_resume(
                             player_entity_id, fallback_entity_id=fallback_player_id
                         )

@@ -223,41 +223,9 @@ async def test_clear_queue(hass):
 
 
 @pytest.mark.asyncio
-async def test_randomize_queue_start_direct_client(hass):
-    """Test _async_randomize_queue_start calls play_index on mass_client when available."""
+async def test_play_media_with_shuffle_and_resume_position_seeks(hass):
+    """Test play_media with shuffle=True and resume_position still seeks to resume position."""
     adapter = MusicAssistantAdapter(hass)
-
-    class MockQueue:
-        queue_id = "media_player.box_1"
-        items = [f"item_{i}" for i in range(10)]
-        current_index = 0
-
-    class MockPlayerQueues:
-        def __init__(self):
-            self.played_indices = []
-
-        def __iter__(self):
-            return iter([MockQueue()])
-
-        async def play_index(self, queue_id, index):
-            self.played_indices.append((queue_id, index))
-
-    mock_client = type("MockMass", (), {"player_queues": MockPlayerQueues()})()
-    adapter._get_mass_client = lambda: mock_client
-
-    await adapter._async_randomize_queue_start("media_player.box_1")
-
-    assert len(mock_client.player_queues.played_indices) == 1
-    qid, rand_idx = mock_client.player_queues.played_indices[0]
-    assert qid == "media_player.box_1"
-    assert 0 <= rand_idx < 10
-
-
-@pytest.mark.asyncio
-async def test_randomize_queue_start_fallback_next(hass):
-    """Test _async_randomize_queue_start falls back to media_player.media_next_track."""
-    adapter = MusicAssistantAdapter(hass)
-    adapter._get_mass_client = lambda: None
 
     called_services = []
 
@@ -265,11 +233,29 @@ async def test_randomize_queue_start_fallback_next(hass):
         called_services.append((domain, service, data, target))
 
     hass.services._services = {
-        "media_player": {"media_next_track": mock_service_handler},
+        "music_assistant": {"play_media": mock_service_handler},
+        "media_player": {
+            "shuffle_set": mock_service_handler,
+            "clear_playlist": mock_service_handler,
+            "media_seek": mock_service_handler,
+        },
     }
 
-    await adapter._async_randomize_queue_start("media_player.box_generic")
+    # Call async_play_media with shuffle=True and resume_position=120.0
+    await adapter.async_play_media(
+        player_entity_id="media_player.box_1",
+        media_type="playlist",
+        media_id="spotify://playlist/audiobook_1",
+        resume_position=120.0,
+        shuffle=True,
+    )
 
-    assert len(called_services) == 1
-    assert called_services[0][1] == "media_next_track"
-    assert called_services[0][3] == {"entity_id": "media_player.box_generic"}
+    # Verify seek was scheduled/called
+    seek_calls = [c for c in called_services if c[1] == "media_seek"]
+    # Allow background task to execute
+    import asyncio
+
+    await asyncio.sleep(1.2)
+    seek_calls = [c for c in called_services if c[1] == "media_seek"]
+    assert len(seek_calls) >= 1
+    assert seek_calls[0][2]["seek_position"] == 120.0

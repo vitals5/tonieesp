@@ -25,6 +25,9 @@ def mock_ma_adapter():
     adapter = MagicMock()
     adapter.async_play_media = AsyncMock()
     adapter.async_pause = AsyncMock()
+    adapter.async_resume = AsyncMock()
+    adapter.async_set_shuffle = AsyncMock()
+    adapter.async_set_repeat = AsyncMock()
     adapter.get_player_state = MagicMock(
         return_value={
             "state": "playing",
@@ -136,15 +139,13 @@ async def test_box_isolated_playback_progress(hass, mock_storage, mock_ma_adapte
 
 
 @pytest.mark.asyncio
-async def test_playback_shuffle_passes_settings_and_starts_fresh(
-    hass, mock_storage, mock_ma_adapter
-):
-    """Test tags with shuffle=True pass shuffle=True and start whole playlist fresh without saved track resume."""
+async def test_playback_shuffle_with_resume_false_starts_fresh(hass, mock_storage, mock_ma_adapter):
+    """Test tags with shuffle=True and resume=False start whole playlist fresh without saved track resume."""
     pm = PlaybackManager(hass, mock_storage, mock_ma_adapter)
     await pm.async_load()
 
     media = {"media_id": "playlist_hits", "media_type": "playlist"}
-    settings = {"shuffle": True, "repeat": "all", "resume": True}
+    settings = {"shuffle": True, "repeat": "all", "resume": False}
 
     # Simulate a prior persistent session
     pm._persistent_sessions["box_1_TAG_SHUFFLE"] = PlaybackSession(
@@ -170,7 +171,7 @@ async def test_playback_shuffle_passes_settings_and_starts_fresh(
     # Shuffle & repeat passed
     assert call_kwargs["shuffle"] is True
     assert call_kwargs["repeat"] == "all"
-    # Starting whole playlist fresh, not locked into the old track
+    # Starting whole playlist fresh because resume is False
     assert call_kwargs["resume_position"] is None
     assert call_kwargs["track_uri"] is None
 
@@ -214,17 +215,17 @@ async def test_resume_disabled_starts_from_beginning_even_if_paused(
 
 
 @pytest.mark.asyncio
-async def test_shuffle_enabled_never_resumes_paused_player(hass, mock_storage, mock_ma_adapter):
-    """Test when shuffle=True, tag placement always starts fresh random track and never unpauses."""
+async def test_shuffle_with_resume_enabled_resumes_playback(hass, mock_storage, mock_ma_adapter):
+    """Test when shuffle=True AND resume=True, placing the tag resumes the last audiobook/track."""
     pm = PlaybackManager(hass, mock_storage, mock_ma_adapter)
     await pm.async_load()
 
-    media = {"media_id": "playlist_kids", "media_type": "playlist"}
+    media = {"media_id": "playlist_audiobook", "media_type": "playlist"}
     settings = {"resume": True, "shuffle": True}
 
     # 1. Place tag first time
     await pm.async_handle_tag_placed(
-        "box_1", "media_player.box_1", "TAG_SHUFFLE_2", media, settings
+        "box_1", "media_player.box_1", "TAG_SHUFFLE_RESUME", media, settings
     )
     assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] is None
 
@@ -233,17 +234,53 @@ async def test_shuffle_enabled_never_resumes_paused_player(hass, mock_storage, m
         "state": "paused",
         "position": 75.0,
         "duration": 200.0,
+        "content_id": "spotify://track/chapter_2",
+    }
+    await pm.async_handle_tag_removed("box_1", "media_player.box_1", pause_on_removal=True)
+
+    # 3. Tag placed back on box - should resume!
+    pm._last_scan["box_1"] = ("TAG_SHUFFLE_RESUME", time.time() - 3.0)
+    await pm.async_handle_tag_placed(
+        "box_1", "media_player.box_1", "TAG_SHUFFLE_RESUME", media, settings
+    )
+
+    # Must unpause/resume the player
+    assert mock_ma_adapter.async_resume.called
+    # Shuffle must be re-asserted on resume
+    assert mock_ma_adapter.async_set_shuffle.called
+
+
+@pytest.mark.asyncio
+async def test_shuffle_with_resume_disabled_never_resumes(hass, mock_storage, mock_ma_adapter):
+    """Test when shuffle=True AND resume=False, tag placement starts fresh and never unpauses."""
+    pm = PlaybackManager(hass, mock_storage, mock_ma_adapter)
+    await pm.async_load()
+
+    media = {"media_id": "playlist_kids", "media_type": "playlist"}
+    settings = {"resume": False, "shuffle": True}
+
+    # 1. Place tag first time
+    await pm.async_handle_tag_placed(
+        "box_1", "media_player.box_1", "TAG_SHUFFLE_NO_RESUME", media, settings
+    )
+    assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] is None
+
+    # 2. Tag is removed, player paused at 55s
+    mock_ma_adapter.get_player_state.return_value = {
+        "state": "paused",
+        "position": 55.0,
+        "duration": 180.0,
     }
     await pm.async_handle_tag_removed("box_1", "media_player.box_1", pause_on_removal=True)
 
     # 3. Tag placed back on box
-    pm._last_scan["box_1"] = ("TAG_SHUFFLE_2", time.time() - 3.0)
+    pm._last_scan["box_1"] = ("TAG_SHUFFLE_NO_RESUME", time.time() - 3.0)
     await pm.async_handle_tag_placed(
-        "box_1", "media_player.box_1", "TAG_SHUFFLE_2", media, settings
+        "box_1", "media_player.box_1", "TAG_SHUFFLE_NO_RESUME", media, settings
     )
 
     # Must NOT unpause!
     assert not mock_ma_adapter.async_resume.called
-    # Must call async_play_media fresh with shuffle=True
+    # Must call async_play_media fresh with shuffle=True and resume_position=None
     assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] is None
     assert mock_ma_adapter.async_play_media.call_args[1]["shuffle"] is True
