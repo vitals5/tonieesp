@@ -220,3 +220,56 @@ async def test_clear_queue(hass):
     assert called_services[0][3] == {"entity_id": "media_player.primary"}
     assert called_services[1][1] == "clear_playlist"
     assert called_services[1][3] == {"entity_id": "media_player.fallback"}
+
+
+@pytest.mark.asyncio
+async def test_randomize_queue_start_direct_client(hass):
+    """Test _async_randomize_queue_start calls play_index on mass_client when available."""
+    adapter = MusicAssistantAdapter(hass)
+
+    class MockQueue:
+        queue_id = "media_player.box_1"
+        items = [f"item_{i}" for i in range(10)]
+        current_index = 0
+
+    class MockPlayerQueues:
+        def __init__(self):
+            self.played_indices = []
+
+        def __iter__(self):
+            return iter([MockQueue()])
+
+        async def play_index(self, queue_id, index):
+            self.played_indices.append((queue_id, index))
+
+    mock_client = type("MockMass", (), {"player_queues": MockPlayerQueues()})()
+    adapter._get_mass_client = lambda: mock_client
+
+    await adapter._async_randomize_queue_start("media_player.box_1")
+
+    assert len(mock_client.player_queues.played_indices) == 1
+    qid, rand_idx = mock_client.player_queues.played_indices[0]
+    assert qid == "media_player.box_1"
+    assert 0 <= rand_idx < 10
+
+
+@pytest.mark.asyncio
+async def test_randomize_queue_start_fallback_next(hass):
+    """Test _async_randomize_queue_start falls back to media_player.media_next_track."""
+    adapter = MusicAssistantAdapter(hass)
+    adapter._get_mass_client = lambda: None
+
+    called_services = []
+
+    def mock_service_handler(domain, service, data, target):
+        called_services.append((domain, service, data, target))
+
+    hass.services._services = {
+        "media_player": {"media_next_track": mock_service_handler},
+    }
+
+    await adapter._async_randomize_queue_start("media_player.box_generic")
+
+    assert len(called_services) == 1
+    assert called_services[0][1] == "media_next_track"
+    assert called_services[0][3] == {"entity_id": "media_player.box_generic"}

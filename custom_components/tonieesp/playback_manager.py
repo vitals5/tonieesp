@@ -159,58 +159,59 @@ class PlaybackManager:
         resume_track_uri: str | None = None
         resume_track_title: str | None = None
 
-        # 1. Check active short-term session on this box
-        active = self._active_sessions.get(box_id)
-        if active and active.tag_uid == tag_uid and active.was_paused_by_removal:
-            if (now - active.updated_at) < SHORT_TERM_RESUME_MAX_AGE:
-                # If player is currently paused, seamlessly resume playback without reloading
-                player_state = self.ma_adapter.get_player_state(player_entity_id)
-                if player_state.get("state") == "paused":
+        # Check resume options ONLY if resume is enabled and shuffle is disabled
+        if resume_enabled and not shuffle_enabled:
+            # 1. Check active short-term session on this box
+            active = self._active_sessions.get(box_id)
+            if active and active.tag_uid == tag_uid and active.was_paused_by_removal:
+                if (now - active.updated_at) < SHORT_TERM_RESUME_MAX_AGE:
+                    # If player is currently paused, seamlessly resume playback without reloading
+                    player_state = self.ma_adapter.get_player_state(player_entity_id)
+                    if player_state.get("state") == "paused":
+                        _LOGGER.info(
+                            "Resuming paused playback for tag %s on box %s",
+                            tag_uid,
+                            box_id,
+                        )
+                        active.was_paused_by_removal = False
+                        active.updated_at = now
+                        await self.ma_adapter.async_resume(
+                            player_entity_id, fallback_entity_id=fallback_player_id
+                        )
+                        return
+
+                    # Same tag returned to same box after pause
                     _LOGGER.info(
-                        "Resuming paused playback for tag %s on box %s",
+                        "Resuming short-term paused tag %s on box %s at position %.1fs (track: %s)",
                         tag_uid,
                         box_id,
+                        active.position,
+                        active.track_title,
                     )
+                    resume_position = active.position
+                    resume_track_uri = active.track_uri
+                    resume_track_title = active.track_title
                     active.was_paused_by_removal = False
                     active.updated_at = now
-                    await self.ma_adapter.async_resume(
-                        player_entity_id, fallback_entity_id=fallback_player_id
-                    )
-                    return
 
-                # Same tag returned to same box after pause
-                _LOGGER.info(
-                    "Resuming short-term paused tag %s on box %s at position %.1fs (track: %s)",
-                    tag_uid,
-                    box_id,
-                    active.position,
-                    active.track_title,
-                )
-                resume_position = active.position
-                resume_track_uri = active.track_uri
-                resume_track_title = active.track_title
-                active.was_paused_by_removal = False
-                active.updated_at = now
-
-        # 2. Check persistent progress for this tag on THIS SPECIFIC BOX (independent child/box progress)
-        # Note: If shuffle is enabled, we start the playlist shuffled from scratch instead of locking into a saved track
-        if resume_position is None and resume_enabled and not shuffle_enabled:
-            box_tag_key = make_session_key(box_id, tag_uid)
-            saved_sess = self._persistent_sessions.get(box_tag_key)
-            if saved_sess and not saved_sess.completed:
-                if saved_sess.media_id == media_id and (
-                    saved_sess.position > 5.0 or saved_sess.track_uri
-                ):
-                    _LOGGER.info(
-                        "Found persistent progress for tag %s on box %s: resuming at %.1fs (track: %s)",
-                        tag_uid,
-                        box_id,
-                        saved_sess.position,
-                        saved_sess.track_title,
-                    )
-                    resume_position = saved_sess.position
-                    resume_track_uri = saved_sess.track_uri
-                    resume_track_title = saved_sess.track_title
+            # 2. Check persistent progress for this tag on THIS SPECIFIC BOX (independent child/box progress)
+            if resume_position is None:
+                box_tag_key = make_session_key(box_id, tag_uid)
+                saved_sess = self._persistent_sessions.get(box_tag_key)
+                if saved_sess and not saved_sess.completed:
+                    if saved_sess.media_id == media_id and (
+                        saved_sess.position > 5.0 or saved_sess.track_uri
+                    ):
+                        _LOGGER.info(
+                            "Found persistent progress for tag %s on box %s: resuming at %.1fs (track: %s)",
+                            tag_uid,
+                            box_id,
+                            saved_sess.position,
+                            saved_sess.track_title,
+                        )
+                        resume_position = saved_sess.position
+                        resume_track_uri = saved_sess.track_uri
+                        resume_track_title = saved_sess.track_title
 
         # Start playback with enqueue="replace" to ensure no previous queue tracks leak
         await self.ma_adapter.async_play_media(

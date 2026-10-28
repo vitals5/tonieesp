@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import random
 from datetime import UTC, datetime
 from typing import Any
 
@@ -239,7 +240,7 @@ class MusicAssistantAdapter:
                     blocking=True,
                 )
 
-        # 5. Handle post-play tasks: re-assert shuffle and repeat after queue loaded, and handle seek
+        # 5. Handle post-play tasks: re-assert shuffle and repeat after queue loaded, seek or randomize
         async def _post_play_setup() -> None:
             await asyncio.sleep(0.6)
             if shuffle is not None:
@@ -250,13 +251,61 @@ class MusicAssistantAdapter:
                 await self.async_set_repeat(
                     player_entity_id, repeat, fallback_entity_id=fallback_player_id
                 )
-            if not shuffle and resume_position and resume_position > 2.0:
+            if shuffle:
+                await self._async_randomize_queue_start(
+                    player_entity_id, fallback_entity_id=fallback_player_id
+                )
+            elif resume_position and resume_position > 2.0:
                 await asyncio.sleep(0.4)
                 await self.async_seek(
                     player_entity_id, resume_position, fallback_entity_id=fallback_player_id
                 )
 
         self.hass.async_create_task(_post_play_setup())
+
+    async def _async_randomize_queue_start(
+        self, player_entity_id: str, fallback_entity_id: str | None = None
+    ) -> None:
+        """Ensure playback starts on a random track in the queue when shuffle is active."""
+        mass_client = self._get_mass_client()
+        entities = list(dict.fromkeys([e for e in (player_entity_id, fallback_entity_id) if e]))
+
+        if mass_client and hasattr(mass_client, "player_queues"):
+            with contextlib.suppress(Exception):
+                for queue in getattr(mass_client, "player_queues", []):
+                    q_id = getattr(queue, "queue_id", None)
+                    if not q_id:
+                        continue
+                    for ent in entities:
+                        if q_id == ent or ent.endswith(str(q_id)) or str(q_id) in ent:
+                            items = getattr(queue, "items", None)
+                            total = len(items) if items else getattr(queue, "items_count", 0)
+                            if total and total > 1:
+                                current_idx = getattr(queue, "current_index", 0) or 0
+                                possible_indices = [i for i in range(total) if i != current_idx]
+                                rand_idx = (
+                                    random.choice(possible_indices)
+                                    if possible_indices
+                                    else random.randint(0, total - 1)
+                                )
+                                if hasattr(mass_client.player_queues, "play_index"):
+                                    res = mass_client.player_queues.play_index(q_id, rand_idx)
+                                    if asyncio.iscoroutine(res):
+                                        await res
+                                    _LOGGER.info(
+                                        "Randomized starting track to index %s/%s on %s",
+                                        rand_idx,
+                                        total,
+                                        q_id,
+                                    )
+                                    return
+
+        # Fallback: trigger media_next_track to avoid starting on track 0
+        try:
+            await self.async_next(player_entity_id, fallback_entity_id=fallback_entity_id)
+            _LOGGER.debug("Skipped to next random track via async_next on %s", player_entity_id)
+        except Exception as err:
+            _LOGGER.debug("Failed to skip to next track during shuffle start: %s", err)
 
     async def async_play_pause(
         self, player_entity_id: str, fallback_entity_id: str | None = None
