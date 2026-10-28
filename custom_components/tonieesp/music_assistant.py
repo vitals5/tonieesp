@@ -124,8 +124,29 @@ class MusicAssistantAdapter:
         # 2. Clear existing queue so no old tracks or foreign playlists leak into playback
         await self.async_clear_queue(player_entity_id, fallback_entity_id=fallback_player_id)
 
+        # Check if we are resuming a specific track within a container (playlist / album)
+        is_container = (media_type or "").lower() in ("playlist", "album") or (
+            media_id and ("playlist" in media_id.lower() or "album" in media_id.lower())
+        )
+        has_specific_track = bool(track_uri and track_uri != media_id)
+
+        # If we don't have a track_uri but have a track_title and are resuming a container, try to resolve track_uri
+        if is_container and not has_specific_track and track_title and resume_position is not None:
+            with contextlib.suppress(Exception):
+                search_hits = await self.async_search_media(track_title, media_types=["track"])
+                for hit in search_hits:
+                    h_id = hit.get("media_id")
+                    if h_id and h_id != media_id:
+                        track_uri = h_id
+                        has_specific_track = True
+                        break
+
         # 3. Configure shuffle & repeat on the player entity before playback starts
-        if shuffle is not None:
+        # IMPORTANT: If resuming a specific track in a container with shuffle=True,
+        # do NOT enable shuffle on the player entity before playback starts,
+        # otherwise Music Assistant will immediately randomize the starting track.
+        # Instead, shuffle will be enabled in _post_play_setup once the target track is active.
+        if shuffle is not None and not has_specific_track:
             await self.async_set_shuffle(
                 player_entity_id, shuffle, fallback_entity_id=fallback_player_id
             )
@@ -145,55 +166,59 @@ class MusicAssistantAdapter:
             else "mass"
         )
 
-        # If shuffle is enabled, queue the full playlist/album so tracks can be randomized
-        if shuffle:
-            effective_media_id = media_id
-            effective_media_type = media_type or MEDIA_TYPE_PLAYLIST
-        else:
-            effective_media_id = track_uri or media_id
-            effective_media_type = "track" if track_uri else (media_type or MEDIA_TYPE_PLAYLIST)
-
         is_radio = (media_type or "").lower() == "radio"
 
         if has_ma_action:
-            _LOGGER.debug(
-                "Calling %s.play_media on %s (media_id=%s, media_type=%s, enqueue=%s, radio_mode=%s, shuffle=%s)",
-                domain,
-                player_entity_id,
-                effective_media_id,
-                effective_media_type,
-                enqueue,
-                is_radio,
-                shuffle,
-            )
-            # Use enqueue='replace' so MA purges previous tracks and only queues this playlist
-            data: dict[str, Any] = {
-                "media_id": effective_media_id,
-                "media_type": effective_media_type,
-                "enqueue": enqueue,
-                "radio_mode": is_radio,
-            }
-            try:
-                await self.hass.services.async_call(
-                    domain,
-                    "play_media",
-                    service_data=data,
-                    target={"entity_id": player_entity_id},
-                    blocking=True,
-                )
-            except Exception as err:
-                _LOGGER.warning(
-                    "%s.play_media failed with track_uri '%s' (%s), retrying with base media_id '%s'",
-                    domain,
-                    effective_media_id,
-                    err,
+            if is_container and has_specific_track:
+                # Two-step queue to guarantee resuming exact track without random skip:
+                # Step 1: Start playing target track with enqueue='replace'
+                _LOGGER.info(
+                    "Resuming specific track '%s' on %s before queuing container '%s'",
+                    track_uri,
+                    player_entity_id,
                     media_id,
                 )
-                if effective_media_id != media_id:
-                    data["media_id"] = media_id
-                    data["media_type"] = media_type or MEDIA_TYPE_PLAYLIST
-                    data["enqueue"] = enqueue
-                    data["radio_mode"] = is_radio
+                try:
+                    await self.hass.services.async_call(
+                        domain,
+                        "play_media",
+                        service_data={
+                            "media_id": track_uri,
+                            "media_type": "track",
+                            "enqueue": "replace",
+                            "radio_mode": False,
+                        },
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+                    # Step 2: Queue the container playlist behind the active track
+                    await asyncio.sleep(0.1)
+                    await self.hass.services.async_call(
+                        domain,
+                        "play_media",
+                        service_data={
+                            "media_id": media_id,
+                            "media_type": media_type or MEDIA_TYPE_PLAYLIST,
+                            "enqueue": "add",
+                            "radio_mode": False,
+                        },
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+                except Exception as err:
+                    _LOGGER.warning(
+                        "Two-step track resume failed (%s), falling back to base container %s",
+                        err,
+                        media_id,
+                    )
+                    data: dict[str, Any] = {
+                        "media_id": media_id,
+                        "media_type": media_type or MEDIA_TYPE_PLAYLIST,
+                        "enqueue": enqueue,
+                        "radio_mode": is_radio,
+                    }
+                    if track_title:
+                        data["start_item"] = track_title
                     await self.hass.services.async_call(
                         domain,
                         "play_media",
@@ -201,43 +226,116 @@ class MusicAssistantAdapter:
                         target={"entity_id": player_entity_id},
                         blocking=True,
                     )
-                else:
-                    raise
+            else:
+                # Standard single-call playback (fresh start, pure shuffle, or single track)
+                data = {
+                    "media_id": media_id,
+                    "media_type": media_type or MEDIA_TYPE_PLAYLIST,
+                    "enqueue": enqueue,
+                    "radio_mode": is_radio,
+                }
+                if track_title and is_container and resume_position is not None:
+                    data["start_item"] = track_title
+                _LOGGER.debug(
+                    "Calling %s.play_media on %s (media_id=%s, media_type=%s, enqueue=%s, radio_mode=%s, shuffle=%s)",
+                    domain,
+                    player_entity_id,
+                    media_id,
+                    media_type,
+                    enqueue,
+                    is_radio,
+                    shuffle,
+                )
+                try:
+                    await self.hass.services.async_call(
+                        domain,
+                        "play_media",
+                        service_data=data,
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+                except Exception as err:
+                    if "start_item" in data:
+                        _LOGGER.debug(
+                            "play_media with start_item failed (%s), retrying without", err
+                        )
+                        data.pop("start_item", None)
+                        await self.hass.services.async_call(
+                            domain,
+                            "play_media",
+                            service_data=data,
+                            target={"entity_id": player_entity_id},
+                            blocking=True,
+                        )
+                    else:
+                        raise
         else:
             # Fallback to standard media_player.play_media
-            _LOGGER.debug(
-                "Calling media_player.play_media on %s (content_id=%s, type=%s, enqueue=%s, shuffle=%s)",
-                player_entity_id,
-                effective_media_id,
-                effective_media_type,
-                enqueue,
-                shuffle,
-            )
-            data = {
-                ATTR_MEDIA_CONTENT_ID: effective_media_id,
-                ATTR_MEDIA_CONTENT_TYPE: effective_media_type,
-                "extra": {
-                    "enqueue": enqueue,
-                },
-            }
-            try:
-                await self.hass.services.async_call(
-                    MEDIA_PLAYER_DOMAIN,
-                    SERVICE_PLAY_MEDIA,
-                    service_data=data,
-                    target={"entity_id": player_entity_id},
-                    blocking=True,
-                )
-            except Exception as err:
-                _LOGGER.debug("play_media with extra failed (%s), retrying without extra", err)
-                data.pop("extra", None)
-                await self.hass.services.async_call(
-                    MEDIA_PLAYER_DOMAIN,
-                    SERVICE_PLAY_MEDIA,
-                    service_data=data,
-                    target={"entity_id": player_entity_id},
-                    blocking=True,
-                )
+            if is_container and has_specific_track:
+                try:
+                    await self.hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        SERVICE_PLAY_MEDIA,
+                        service_data={
+                            ATTR_MEDIA_CONTENT_ID: track_uri,
+                            ATTR_MEDIA_CONTENT_TYPE: "track",
+                            "extra": {"enqueue": "replace"},
+                        },
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+                    await asyncio.sleep(0.1)
+                    await self.hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        SERVICE_PLAY_MEDIA,
+                        service_data={
+                            ATTR_MEDIA_CONTENT_ID: media_id,
+                            ATTR_MEDIA_CONTENT_TYPE: media_type or MEDIA_TYPE_PLAYLIST,
+                            "extra": {"enqueue": "add"},
+                        },
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+                except Exception as err:
+                    _LOGGER.debug(
+                        "Two-step fallback play_media failed: %s, retrying base media", err
+                    )
+                    await self.hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        SERVICE_PLAY_MEDIA,
+                        service_data={
+                            ATTR_MEDIA_CONTENT_ID: media_id,
+                            ATTR_MEDIA_CONTENT_TYPE: media_type or MEDIA_TYPE_PLAYLIST,
+                        },
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+            else:
+                data = {
+                    ATTR_MEDIA_CONTENT_ID: media_id,
+                    ATTR_MEDIA_CONTENT_TYPE: media_type or MEDIA_TYPE_PLAYLIST,
+                    "extra": {
+                        "enqueue": enqueue,
+                    },
+                }
+                try:
+                    await self.hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        SERVICE_PLAY_MEDIA,
+                        service_data=data,
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
+                except Exception as err:
+                    _LOGGER.debug("play_media with extra failed (%s), retrying without extra", err)
+                    data.pop("extra", None)
+                    await self.hass.services.async_call(
+                        MEDIA_PLAYER_DOMAIN,
+                        SERVICE_PLAY_MEDIA,
+                        service_data=data,
+                        target={"entity_id": player_entity_id},
+                        blocking=True,
+                    )
 
         # 5. Handle post-play tasks: re-assert shuffle and repeat after queue loaded, and handle seek
         async def _post_play_setup() -> None:
@@ -250,29 +348,6 @@ class MusicAssistantAdapter:
                 await self.async_set_repeat(
                     player_entity_id, repeat, fallback_entity_id=fallback_player_id
                 )
-
-            # If resuming a specific track within a playlist, jump to that track in the queue
-            if track_uri and effective_media_id != track_uri:
-                mass_client = self._get_mass_client()
-                entities = list(
-                    dict.fromkeys([e for e in (player_entity_id, fallback_player_id) if e])
-                )
-                if mass_client and hasattr(mass_client, "player_queues"):
-                    with contextlib.suppress(Exception):
-                        for queue in getattr(mass_client, "player_queues", []):
-                            q_id = getattr(queue, "queue_id", None)
-                            if q_id and any(
-                                q_id == ent or ent.endswith(str(q_id)) or str(q_id) in ent
-                                for ent in entities
-                            ):
-                                items = getattr(queue, "items", []) or []
-                                for idx, itm in enumerate(items):
-                                    if getattr(itm, "uri", None) == track_uri:
-                                        if hasattr(mass_client.player_queues, "play_index"):
-                                            res = mass_client.player_queues.play_index(q_id, idx)
-                                            if asyncio.iscoroutine(res):
-                                                await res
-                                        break
 
             if resume_position and resume_position > 2.0:
                 await asyncio.sleep(0.4)
@@ -574,28 +649,56 @@ class MusicAssistantAdapter:
                     pass
 
         current_track_uri = None
+        current_track_title = None
         mass_client = self._get_mass_client()
         if mass_client and hasattr(mass_client, "player_queues"):
             with contextlib.suppress(Exception):
+                pq = mass_client.player_queues
+                queues_list: list[Any] = []
+                if isinstance(pq, (list, tuple)):
+                    queues_list = list(pq)
+                elif hasattr(pq, "queues") and isinstance(pq.queues, dict):
+                    queues_list = list(pq.queues.values())
+                elif hasattr(pq, "_queues") and isinstance(pq._queues, dict):
+                    queues_list = list(pq._queues.values())
+                elif hasattr(pq, "__iter__"):
+                    try:
+                        queues_list = list(pq)
+                    except Exception:
+                        queues_list = []
+
                 # Check active queue for player
-                for queue in mass_client.player_queues:
-                    if getattr(queue, "current_item", None):
-                        q_player = getattr(queue, "active_source", None) or getattr(
-                            queue, "queue_id", None
-                        )
-                        if q_player and (
-                            q_player in player_entity_id or player_entity_id.endswith(str(q_player))
-                        ):
-                            item = queue.current_item
-                            if getattr(item, "uri", None):
-                                current_track_uri = item.uri
-                                break
+                for queue in queues_list:
+                    item = getattr(queue, "current_item", None)
+                    if not item:
+                        continue
+                    q_player = str(
+                        getattr(queue, "active_source", None)
+                        or getattr(queue, "queue_id", None)
+                        or ""
+                    )
+                    if q_player and (
+                        q_player == player_entity_id
+                        or q_player in player_entity_id
+                        or player_entity_id.endswith(q_player)
+                    ):
+                        uri = getattr(item, "uri", None)
+                        if not uri and hasattr(item, "media_item"):
+                            uri = getattr(item.media_item, "uri", None)
+                        if uri:
+                            current_track_uri = str(uri)
+                        name = getattr(item, "name", None)
+                        if not name and hasattr(item, "media_item"):
+                            name = getattr(item.media_item, "name", None)
+                        if name:
+                            current_track_title = str(name)
+                        break
 
         return {
             "entity_id": player_entity_id,
             "state": state.state,
             "volume_level": state.attributes.get("volume_level", 0.0),
-            "title": state.attributes.get(ATTR_MEDIA_TITLE, ""),
+            "title": current_track_title or state.attributes.get(ATTR_MEDIA_TITLE, ""),
             "artist": state.attributes.get(ATTR_MEDIA_ARTIST, ""),
             "album": state.attributes.get(ATTR_MEDIA_ALBUM_NAME, ""),
             "image": state.attributes.get(ATTR_ENTITY_PICTURE, ""),

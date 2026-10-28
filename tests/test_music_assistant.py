@@ -153,7 +153,7 @@ async def test_set_shuffle_and_repeat(hass):
 
 @pytest.mark.asyncio
 async def test_play_media_with_shuffle_preserves_full_playlist(hass):
-    """Test play_media with shuffle=True keeps full playlist/album, replaces queue, disables radio, and sets shuffle mode."""
+    """Test play_media with shuffle=True and no track_uri plays full playlist fresh with shuffle."""
     adapter = MusicAssistantAdapter(hass)
 
     called_services = []
@@ -169,12 +169,11 @@ async def test_play_media_with_shuffle_preserves_full_playlist(hass):
         },
     }
 
-    # Call async_play_media with shuffle=True and a track_uri that would otherwise narrow to single track
+    # Call async_play_media with pure shuffle (no track_uri)
     await adapter.async_play_media(
         player_entity_id="media_player.box_1",
         media_type="playlist",
         media_id="spotify://playlist/great_hits",
-        track_uri="spotify://track/old_single_track",
         shuffle=True,
     )
 
@@ -183,7 +182,7 @@ async def test_play_media_with_shuffle_preserves_full_playlist(hass):
     assert len(clear_calls) == 1
     assert clear_calls[0][3] == {"entity_id": "media_player.box_1"}
 
-    # Verify shuffle_set was called with True
+    # Verify shuffle_set was called with True before playback
     shuffle_calls = [c for c in called_services if c[1] == "shuffle_set"]
     assert len(shuffle_calls) >= 1
     assert shuffle_calls[0][2] == {"shuffle": True}
@@ -195,6 +194,68 @@ async def test_play_media_with_shuffle_preserves_full_playlist(hass):
     assert play_calls[0][2]["media_type"] == "playlist"
     assert play_calls[0][2]["enqueue"] == "replace"
     assert play_calls[0][2]["radio_mode"] is False
+
+
+@pytest.mark.asyncio
+async def test_play_media_with_shuffle_and_track_uri_resumes_exact_track(hass):
+    """Test play_media with shuffle=True and track_uri queues exact track first, then adds playlist and shuffles."""
+    adapter = MusicAssistantAdapter(hass)
+
+    called_services = []
+
+    def mock_service_handler(domain, service, data, target):
+        called_services.append((domain, service, data, target))
+
+    hass.services._services = {
+        "music_assistant": {"play_media": mock_service_handler},
+        "media_player": {
+            "shuffle_set": mock_service_handler,
+            "clear_playlist": mock_service_handler,
+            "media_seek": mock_service_handler,
+        },
+    }
+
+    # Call async_play_media with shuffle=True, playlist media_id, and specific track_uri to resume
+    await adapter.async_play_media(
+        player_entity_id="media_player.box_1",
+        media_type="playlist",
+        media_id="spotify://playlist/great_hits",
+        track_uri="spotify://track/song_3",
+        resume_position=45.0,
+        shuffle=True,
+    )
+
+    # 1. Clear playlist was called
+    clear_calls = [c for c in called_services if c[1] == "clear_playlist"]
+    assert len(clear_calls) == 1
+
+    # 2. Play media was called in two steps:
+    # Step 1: play exact track with enqueue="replace"
+    play_calls = [c for c in called_services if c[1] == "play_media"]
+    assert len(play_calls) == 2
+    assert play_calls[0][2]["media_id"] == "spotify://track/song_3"
+    assert play_calls[0][2]["media_type"] == "track"
+    assert play_calls[0][2]["enqueue"] == "replace"
+
+    # Step 2: append full playlist with enqueue="add"
+    assert play_calls[1][2]["media_id"] == "spotify://playlist/great_hits"
+    assert play_calls[1][2]["media_type"] == "playlist"
+    assert play_calls[1][2]["enqueue"] == "add"
+
+    # 3. Allow post play setup to run
+    import asyncio
+
+    await asyncio.sleep(1.2)
+
+    # Shuffle should be set after track is started so upcoming playlist items are shuffled
+    shuffle_calls = [c for c in called_services if c[1] == "shuffle_set"]
+    assert len(shuffle_calls) >= 1
+    assert shuffle_calls[-1][2] == {"shuffle": True}
+
+    # Seek should seek to resume position 45.0 in the target track
+    seek_calls = [c for c in called_services if c[1] == "media_seek"]
+    assert len(seek_calls) >= 1
+    assert seek_calls[0][2]["seek_position"] == 45.0
 
 
 @pytest.mark.asyncio

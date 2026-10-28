@@ -284,3 +284,73 @@ async def test_shuffle_with_resume_disabled_never_resumes(hass, mock_storage, mo
     # Must call async_play_media fresh with shuffle=True and resume_position=None
     assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] is None
     assert mock_ma_adapter.async_play_media.call_args[1]["shuffle"] is True
+
+
+@pytest.mark.asyncio
+async def test_shuffle_resume_after_other_tag_played_in_between(
+    hass, mock_storage, mock_ma_adapter
+):
+    """Test Tonie Nr1 (shuffle+resume) resumes exact track & position even when Tonie Nr2 played in between."""
+    pm = PlaybackManager(hass, mock_storage, mock_ma_adapter)
+    await pm.async_load()
+
+    media_nr1 = {"media_id": "library://playlist/22", "media_type": "playlist"}
+    settings_nr1 = {"resume": True, "shuffle": True}
+
+    media_nr2 = {"media_id": "library://playlist/99", "media_type": "playlist"}
+    settings_nr2 = {"resume": False, "shuffle": True}
+
+    # 1. Place Tonie Nr1 first time -> starts fresh
+    await pm.async_handle_tag_placed(
+        "box_1", "media_player.box_1", "TAG_NR1", media_nr1, settings_nr1
+    )
+    assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] is None
+
+    # 2. Tonie Nr1 is playing track 3 at 45.0s, then removed
+    mock_ma_adapter.get_player_state.return_value = {
+        "state": "playing",
+        "position": 45.0,
+        "duration": 210.0,
+        "content_id": "library://track/song_3",
+        "title": "Song 3",
+    }
+    await pm.async_handle_tag_removed("box_1", "media_player.box_1", pause_on_removal=True)
+
+    # Verify session is persistently stored with exact track_uri and track_title
+    saved_sess = pm.get_session_for_box_and_tag("box_1", "TAG_NR1")
+    assert saved_sess is not None
+    assert saved_sess.position == 45.0
+    assert saved_sess.track_uri == "library://track/song_3"
+    assert saved_sess.track_title == "Song 3"
+
+    # 3. Tonie Nr2 (pure shuffle) is placed and plays on box_1
+    pm._last_scan["box_1"] = ("TAG_NR2", time.time() - 3.0)
+    await pm.async_handle_tag_placed(
+        "box_1", "media_player.box_1", "TAG_NR2", media_nr2, settings_nr2
+    )
+    assert mock_ma_adapter.async_play_media.call_args[1]["media_id"] == "library://playlist/99"
+    assert mock_ma_adapter.async_play_media.call_args[1]["resume_position"] is None
+
+    # Tonie Nr2 is removed
+    mock_ma_adapter.get_player_state.return_value = {
+        "state": "playing",
+        "position": 12.0,
+        "duration": 180.0,
+        "content_id": "library://track/nr2_track",
+        "title": "NR2 Track",
+    }
+    await pm.async_handle_tag_removed("box_1", "media_player.box_1", pause_on_removal=True)
+
+    # 4. Tonie Nr1 is placed back on box_1!
+    pm._last_scan["box_1"] = ("TAG_NR1", time.time() - 3.0)
+    await pm.async_handle_tag_placed(
+        "box_1", "media_player.box_1", "TAG_NR1", media_nr1, settings_nr1
+    )
+
+    # Verify async_play_media was called with EXACT saved track_uri, position 45.0, and shuffle=True
+    play_call = mock_ma_adapter.async_play_media.call_args[1]
+    assert play_call["media_id"] == "library://playlist/22"
+    assert play_call["track_uri"] == "library://track/song_3"
+    assert play_call["track_title"] == "Song 3"
+    assert play_call["resume_position"] == 45.0
+    assert play_call["shuffle"] is True

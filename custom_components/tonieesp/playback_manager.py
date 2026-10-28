@@ -205,14 +205,15 @@ class PlaybackManager:
                 saved_sess = self._persistent_sessions.get(box_tag_key)
                 if saved_sess and not saved_sess.completed:
                     if saved_sess.media_id == media_id and (
-                        saved_sess.position > 5.0 or saved_sess.track_uri
+                        saved_sess.position > 5.0 or saved_sess.track_uri or saved_sess.track_title
                     ):
                         _LOGGER.info(
-                            "Found persistent progress for tag %s on box %s: resuming at %.1fs (track: %s)",
+                            "Found persistent progress for tag %s on box %s: resuming at %.1fs (track: %s, uri: %s)",
                             tag_uid,
                             box_id,
                             saved_sess.position,
                             saved_sess.track_title,
+                            saved_sess.track_uri,
                         )
                         resume_position = saved_sess.position
                         resume_track_uri = saved_sess.track_uri
@@ -270,7 +271,17 @@ class PlaybackManager:
         current_pos = player_state.get("position", active.position)
         duration = player_state.get("duration", active.duration)
         track_title = player_state.get("title") or active.track_title
-        track_uri = player_state.get("content_id") or active.track_uri
+        raw_content_id = player_state.get("content_id")
+
+        # Distinguish between container URI (e.g. playlist) and individual track URI
+        if raw_content_id and raw_content_id != active.media_id:
+            track_uri = raw_content_id
+        else:
+            track_uri = (
+                active.track_uri
+                if (active.track_uri and active.track_uri != active.media_id)
+                else None
+            )
 
         now = time.time()
         active.position = current_pos
