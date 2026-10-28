@@ -134,89 +134,81 @@ class TonieESPConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return TonieESPOptionsFlowHandler(config_entry)
 
 
+OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_MUSIC_ASSISTANT_PLAYER): EntitySelector(
+            EntitySelectorConfig(domain="media_player")
+        ),
+        vol.Optional(CONF_PING_BINARY_SENSOR): EntitySelector(
+            EntitySelectorConfig(domain="binary_sensor")
+        ),
+        vol.Optional(CONF_PAUSE_ON_REMOVAL): bool,
+        vol.Optional(CONF_RESUME_ON_REPLACE): bool,
+        vol.Optional(CONF_MAX_VOLUME): NumberSelector(
+            NumberSelectorConfig(min=0.1, max=1.0, step=0.05, mode=NumberSelectorMode.SLIDER)
+        ),
+        vol.Optional(CONF_SEEK_STEP): NumberSelector(
+            NumberSelectorConfig(min=5, max=60, step=5, mode=NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_GESTURES_ENABLED): bool,
+        vol.Optional(CONF_LEFT_TAP_ACTION): SelectSelector(
+            SelectSelectorConfig(options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
+        ),
+        vol.Optional(CONF_RIGHT_TAP_ACTION): SelectSelector(
+            SelectSelectorConfig(options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
+        ),
+        vol.Optional(CONF_LEFT_TILT_ACTION): SelectSelector(
+            SelectSelectorConfig(options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
+        ),
+        vol.Optional(CONF_RIGHT_TILT_ACTION): SelectSelector(
+            SelectSelectorConfig(options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
+        ),
+    }
+)
+
+
 class TonieESPOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for an existing Toniebox."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+    def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        if config_entry is not None:
+            self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage Toniebox options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        options = self.config_entry.options
-        current_ma = options.get(
-            CONF_MUSIC_ASSISTANT_PLAYER,
-            self.config_entry.data.get(CONF_MUSIC_ASSISTANT_PLAYER),
-        )
-        current_ping = options.get(
-            CONF_PING_BINARY_SENSOR,
-            self.config_entry.data.get(CONF_PING_BINARY_SENSOR),
-        )
+        entry = self.config_entry
+        options = dict(entry.options)
 
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_MUSIC_ASSISTANT_PLAYER,
-                    description={"suggested_value": current_ma},
-                ): EntitySelector(EntitySelectorConfig(domain="media_player")),
-                vol.Optional(
-                    CONF_PING_BINARY_SENSOR,
-                    description={"suggested_value": current_ping},
-                ): EntitySelector(EntitySelectorConfig(domain="binary_sensor")),
-                vol.Optional(
-                    CONF_PAUSE_ON_REMOVAL,
-                    default=options.get(CONF_PAUSE_ON_REMOVAL, DEFAULT_PAUSE_ON_REMOVAL),
-                ): bool,
-                vol.Optional(
-                    CONF_RESUME_ON_REPLACE,
-                    default=options.get(CONF_RESUME_ON_REPLACE, DEFAULT_RESUME_ON_REPLACE),
-                ): bool,
-                vol.Optional(
-                    CONF_MAX_VOLUME,
-                    default=options.get(CONF_MAX_VOLUME, DEFAULT_MAX_VOLUME),
-                ): NumberSelector(
-                    NumberSelectorConfig(
-                        min=0.1, max=1.0, step=0.05, mode=NumberSelectorMode.SLIDER
-                    )
-                ),
-                vol.Optional(
-                    CONF_SEEK_STEP,
-                    default=options.get(CONF_SEEK_STEP, DEFAULT_SEEK_STEP),
-                ): NumberSelector(
-                    NumberSelectorConfig(min=5, max=60, step=5, mode=NumberSelectorMode.BOX)
-                ),
-                vol.Optional(
-                    CONF_GESTURES_ENABLED,
-                    default=options.get(CONF_GESTURES_ENABLED, DEFAULT_GESTURES_ENABLED),
-                ): bool,
-                vol.Optional(
-                    CONF_LEFT_TAP_ACTION,
-                    default=options.get(CONF_LEFT_TAP_ACTION, DEFAULT_LEFT_TAP_ACTION),
-                ): SelectSelector(
-                    SelectSelectorConfig(options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
-                ),
-                vol.Optional(
-                    CONF_RIGHT_TAP_ACTION,
-                    default=options.get(CONF_RIGHT_TAP_ACTION, DEFAULT_RIGHT_TAP_ACTION),
-                ): SelectSelector(
-                    SelectSelectorConfig(options=TAP_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
-                ),
-                vol.Optional(
-                    CONF_LEFT_TILT_ACTION,
-                    default=options.get(CONF_LEFT_TILT_ACTION, DEFAULT_LEFT_TILT_ACTION),
-                ): SelectSelector(
-                    SelectSelectorConfig(options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
-                ),
-                vol.Optional(
-                    CONF_RIGHT_TILT_ACTION,
-                    default=options.get(CONF_RIGHT_TILT_ACTION, DEFAULT_RIGHT_TILT_ACTION),
-                ): SelectSelector(
-                    SelectSelectorConfig(options=TILT_ACTIONS, mode=SelectSelectorMode.DROPDOWN)
-                ),
-            }
+        suggested_values: dict[str, Any] = {
+            CONF_MUSIC_ASSISTANT_PLAYER: options.get(
+                CONF_MUSIC_ASSISTANT_PLAYER,
+                entry.data.get(CONF_MUSIC_ASSISTANT_PLAYER),
+            ),
+            CONF_PING_BINARY_SENSOR: options.get(
+                CONF_PING_BINARY_SENSOR,
+                entry.data.get(CONF_PING_BINARY_SENSOR),
+            ),
+            CONF_PAUSE_ON_REMOVAL: options.get(CONF_PAUSE_ON_REMOVAL, DEFAULT_PAUSE_ON_REMOVAL),
+            CONF_RESUME_ON_REPLACE: options.get(CONF_RESUME_ON_REPLACE, DEFAULT_RESUME_ON_REPLACE),
+            CONF_MAX_VOLUME: options.get(CONF_MAX_VOLUME, DEFAULT_MAX_VOLUME),
+            CONF_SEEK_STEP: options.get(CONF_SEEK_STEP, DEFAULT_SEEK_STEP),
+            CONF_GESTURES_ENABLED: options.get(CONF_GESTURES_ENABLED, DEFAULT_GESTURES_ENABLED),
+            CONF_LEFT_TAP_ACTION: options.get(CONF_LEFT_TAP_ACTION, DEFAULT_LEFT_TAP_ACTION),
+            CONF_RIGHT_TAP_ACTION: options.get(CONF_RIGHT_TAP_ACTION, DEFAULT_RIGHT_TAP_ACTION),
+            CONF_LEFT_TILT_ACTION: options.get(CONF_LEFT_TILT_ACTION, DEFAULT_LEFT_TILT_ACTION),
+            CONF_RIGHT_TILT_ACTION: options.get(CONF_RIGHT_TILT_ACTION, DEFAULT_RIGHT_TILT_ACTION),
+        }
+
+        # Remove None values so selectors are clean
+        clean_suggested_values = {k: v for k, v in suggested_values.items() if v is not None}
+
+        schema = self.add_suggested_values_to_schema(
+            OPTIONS_SCHEMA,
+            clean_suggested_values,
         )
 
         return self.async_show_form(step_id="init", data_schema=schema)

@@ -14,8 +14,17 @@ export class TonieESPTagLibraryView extends LitElement {
   @state() private _selectedType = "";
 
   static styles = css`
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
     }
 
     .top-toolbar {
@@ -25,22 +34,42 @@ export class TonieESPTagLibraryView extends LitElement {
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 16px;
+      width: 100%;
     }
 
     .search-input {
       flex: 1;
-      min-width: 240px;
+      min-width: 200px;
       padding: 10px 14px;
       border-radius: 8px;
       border: 1px solid var(--divider-color, #ccc);
       background: var(--card-background-color, #ffffff);
       color: var(--primary-text-color, #111);
       font-size: 14px;
+      box-sizing: border-box;
     }
 
     .toolbar-actions {
       display: flex;
       gap: 8px;
+    }
+
+    @media (max-width: 600px) {
+      .top-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .search-input {
+        min-width: 0;
+        width: 100%;
+      }
+      .toolbar-actions {
+        width: 100%;
+      }
+      .toolbar-actions .btn {
+        flex: 1;
+        justify-content: center;
+      }
     }
 
     .btn {
@@ -95,8 +124,9 @@ export class TonieESPTagLibraryView extends LitElement {
 
     .tags-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
       gap: 16px;
+      width: 100%;
     }
 
     .empty-state {

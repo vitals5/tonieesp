@@ -9,15 +9,32 @@ export class TonieESPLogsView extends LitElement {
   @property({ type: String }) lang = "de";
 
   static styles = css`
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
     }
 
     .container {
       background: var(--card-background-color, #ffffff);
       border-radius: 12px;
-      padding: 20px;
+      padding: 16px 12px;
       border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    @media (min-width: 640px) {
+      .container {
+        padding: 20px;
+      }
     }
 
     .header-row {

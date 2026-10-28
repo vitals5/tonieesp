@@ -21,24 +21,42 @@ export class TonieESPBoxDetailView extends LitElement {
   @state() private _tapTimeLimit: number | null = null;
 
   static styles = css`
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
     }
 
     .container {
       background: var(--card-background-color, #ffffff);
       border-radius: 12px;
-      padding: 24px;
+      padding: 16px 12px;
       border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
       max-width: 800px;
+      width: 100%;
       margin: 0 auto;
+      box-sizing: border-box;
     }
 
     .header-row {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
       margin-bottom: 20px;
+    }
+
+    .header-row .btn-back {
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
     }
 
     .title {
@@ -61,48 +79,67 @@ export class TonieESPBoxDetailView extends LitElement {
       margin-bottom: 14px;
     }
 
+    /* DEFAULT (MOBILE FIRST): Single-column */
     .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
     }
 
-    @media (max-width: 768px), (max-width: 900px) and (orientation: portrait) {
+    .setting-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .actions-row {
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 10px;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--divider-color, #eee);
+      width: 100%;
+    }
+
+    .actions-row .btn {
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    /* DESKTOP & TABLET: Screen width >= 640px */
+    @media (min-width: 640px) {
       .container {
-        padding: 16px 12px;
-      }
-
-      .grid-2 {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      .setting-group {
-        width: 100%;
-        min-width: 0;
+        padding: 24px;
       }
 
       .header-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
       }
 
       .header-row .btn-back {
-        width: 100%;
-        text-align: center;
-        box-sizing: border-box;
+        width: auto;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
       }
 
       .actions-row {
-        flex-direction: column-reverse;
+        flex-direction: row;
+        justify-content: flex-end;
       }
 
       .actions-row .btn {
-        width: 100%;
-        text-align: center;
-        box-sizing: border-box;
+        width: auto;
       }
     }
 

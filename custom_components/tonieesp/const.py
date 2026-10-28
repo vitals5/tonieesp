@@ -79,7 +79,7 @@ FRONTEND_TITLE = "TonieESP"
 FRONTEND_ICON = "mdi:music-box"
 FRONTEND_STATIC_PATH = "/tonieesp_static"
 FRONTEND_PANEL_JS = "tonieesp-panel.js"
-FRONTEND_VERSION = "1.0.3"
+FRONTEND_VERSION = "1.0.4"
 
 # WebSocket API Types
 WS_TYPE_BOXES_LIST = "tonieesp/boxes/list"

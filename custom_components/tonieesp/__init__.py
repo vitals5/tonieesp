@@ -31,7 +31,6 @@ class TonieESPFrontendView(HomeAssistantView):
     """View to serve compiled TonieESP frontend JavaScript file directly with correct MIME type."""
 
     url = f"{FRONTEND_STATIC_PATH}/{FRONTEND_PANEL_JS}"
-    extra_urls = ["/tonieesp/frontend.js"]
     name = f"{DOMAIN}:frontend_js"
     requires_auth = False
     cors_allowed = True
@@ -52,6 +51,32 @@ class TonieESPFrontendView(HomeAssistantView):
                 "Cache-Control": (
                     "public, max-age=31536000" if "v=" in request.query_string else "no-cache"
                 ),
+            },
+        )
+
+
+class TonieESPLegacyFrontendView(HomeAssistantView):
+    """Dedicated view to serve legacy frontend.js URL for backwards compatibility."""
+
+    url = "/tonieesp/frontend.js"
+    name = f"{DOMAIN}:legacy_frontend_js"
+    requires_auth = False
+    cors_allowed = True
+
+    def __init__(self, js_path: Path) -> None:
+        """Initialize view."""
+        self._js_path = js_path
+
+    async def get(self, request: web.Request) -> web.Response:
+        """Serve JavaScript bundle for legacy panel URL."""
+        if not self._js_path.exists():
+            return web.Response(status=404, text="Frontend file not found")
+
+        return web.FileResponse(
+            self._js_path,
+            headers={
+                "Content-Type": "application/javascript",
+                "Cache-Control": "no-cache",
             },
         )
 
@@ -122,15 +147,17 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
         _LOGGER.error("TonieESP frontend file not found at %s", frontend_js)
         return
 
-    # 1. Register explicit HTTP view for both static URL and legacy fallback URL
+    # 1. Register explicit HTTP views for static URL and legacy fallback URL
     if hasattr(hass, "http") and hasattr(hass.http, "register_view"):
         if not hass.data[DOMAIN].get("frontend_view_registered"):
             try:
                 hass.http.register_view(TonieESPFrontendView(frontend_js))
+                hass.http.register_view(TonieESPLegacyFrontendView(frontend_js))
                 hass.data[DOMAIN]["frontend_view_registered"] = True
                 _LOGGER.debug(
-                    "Registered TonieESP frontend HTTP view at %s",
+                    "Registered TonieESP frontend HTTP views at %s and %s",
                     TonieESPFrontendView.url,
+                    TonieESPLegacyFrontendView.url,
                 )
             except Exception as err:
                 _LOGGER.debug("Could not register frontend view: %s", err)

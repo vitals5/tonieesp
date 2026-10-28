@@ -84,3 +84,19 @@ async def test_options_flow(hass):
     assert res2["type"] == FlowResultType.CREATE_ENTRY
     assert res2["data"][CONF_PAUSE_ON_REMOVAL] is False
     assert res2["data"][CONF_MAX_VOLUME] == 0.65
+
+
+@pytest.mark.asyncio
+async def test_options_flow_parameterless(hass):
+    """Test options flow initialized without arguments (modern HA style)."""
+    config_entry = MagicMock(spec=config_entries.ConfigEntry)
+    config_entry.data = {CONF_ESPHOME_DEVICE_ID: "dev_456", CONF_NAME: "Modern Box"}
+    config_entry.options = {}
+
+    flow = TonieESPOptionsFlowHandler()
+    flow.hass = hass
+    flow.handler = "test_entry_id"
+
+    with patch.object(hass.config_entries, "async_get_known_entry", return_value=config_entry):
+        res = await flow.async_step_init(user_input=None)
+        assert res["type"] == FlowResultType.FORM

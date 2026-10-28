@@ -11,8 +11,17 @@ export class TonieESPDashboardView extends LitElement {
   @property({ type: String }) lang = "de";
 
   static styles = css`
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
     }
 
     .header-section {
@@ -34,8 +43,9 @@ export class TonieESPDashboardView extends LitElement {
 
     .boxes-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
       gap: 18px;
+      width: 100%;
     }
 
     .empty-state {

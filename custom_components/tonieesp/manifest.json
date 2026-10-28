@@ -9,5 +9,5 @@
   "iot_class": "local_push",
   "dependencies": ["frontend", "http", "panel_custom"],
   "after_dependencies": ["esphome", "music_assistant", "media_source"],
-  "version": "1.0.3"
+  "version": "1.0.4"
 }

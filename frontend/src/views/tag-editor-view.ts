@@ -36,18 +36,29 @@ export class TonieESPTagEditorView extends LitElement {
   @state() private _modalSearched = false;
 
   static styles = css`
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
     :host {
       display: block;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
     }
 
     .editor-card {
       background: var(--card-background-color, #ffffff);
       border-radius: 12px;
-      padding: 24px;
+      padding: 16px 12px;
       box-shadow: var(--ha-card-box-shadow, 0 2px 12px rgba(0, 0, 0, 0.08));
       border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
       max-width: 800px;
+      width: 100%;
       margin: 0 auto;
+      box-sizing: border-box;
     }
 
     .title-row {
@@ -69,6 +80,9 @@ export class TonieESPTagEditorView extends LitElement {
       gap: 12px;
       border-bottom: 1px solid var(--divider-color, #eee);
       margin-bottom: 20px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      white-space: nowrap;
     }
 
     .tab-btn {
@@ -81,6 +95,8 @@ export class TonieESPTagEditorView extends LitElement {
       cursor: pointer;
       border-bottom: 2px solid transparent;
       transition: all 0.15s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .tab-btn.active {
@@ -88,69 +104,24 @@ export class TonieESPTagEditorView extends LitElement {
       border-bottom-color: var(--primary-color, #03a9f4);
     }
 
+    /* DEFAULT (MOBILE FIRST): Single-column, full width */
     .form-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
     }
 
     .full-width {
-      grid-column: span 2;
-    }
-
-    @media (max-width: 768px), (max-width: 900px) and (orientation: portrait) {
-      .editor-card {
-        padding: 16px 12px;
-      }
-
-      .form-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      .full-width {
-        grid-column: span 1;
-      }
-
-      .form-group {
-        width: 100%;
-        min-width: 0;
-      }
-
-      .uid-group {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .media-search-group {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .btn-search,
-      .btn-scan {
-        padding: 10px 14px;
-        width: 100%;
-        text-align: center;
-        box-sizing: border-box;
-      }
-
-      .footer-actions {
-        flex-direction: column-reverse;
-      }
-
-      .footer-actions .btn {
-        width: 100%;
-        text-align: center;
-        box-sizing: border-box;
-      }
+      width: 100%;
     }
 
     .form-group {
       display: flex;
       flex-direction: column;
       gap: 6px;
+      width: 100%;
+      min-width: 0;
     }
 
     label {
@@ -163,6 +134,9 @@ export class TonieESPTagEditorView extends LitElement {
     input[type="number"],
     select,
     textarea {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
       padding: 10px 12px;
       border-radius: 8px;
       border: 1px solid var(--divider-color, #ccc);
@@ -173,11 +147,15 @@ export class TonieESPTagEditorView extends LitElement {
 
     .uid-group {
       display: flex;
+      flex-direction: column;
       gap: 8px;
+      width: 100%;
     }
 
     .uid-group input {
-      flex: 1;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       font-family: monospace;
       text-transform: uppercase;
       font-weight: 600;
@@ -188,30 +166,41 @@ export class TonieESPTagEditorView extends LitElement {
       background: var(--secondary-background-color, #f0f0f0);
       color: var(--primary-text-color, #222);
       border: 1px solid var(--divider-color, #ccc);
-      padding: 0 14px;
+      padding: 10px 14px;
       border-radius: 8px;
       font-weight: 600;
       cursor: pointer;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+      white-space: nowrap;
     }
 
     .media-search-group {
       display: flex;
+      flex-direction: column;
       gap: 8px;
+      width: 100%;
     }
 
     .media-search-group input {
-      flex: 1;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
     }
 
     .btn-search {
       background: var(--primary-color, #03a9f4);
       color: white;
       border: none;
-      padding: 0 14px;
+      padding: 10px 14px;
       border-radius: 8px;
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
     }
 
     .checkbox-row {
@@ -225,6 +214,7 @@ export class TonieESPTagEditorView extends LitElement {
       width: 18px;
       height: 18px;
       accent-color: var(--primary-color, #03a9f4);
+      flex-shrink: 0;
     }
 
     .preview-box {
@@ -235,6 +225,8 @@ export class TonieESPTagEditorView extends LitElement {
       padding: 10px;
       background: var(--secondary-background-color, #f9f9f9);
       border-radius: 8px;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .preview-thumb {
@@ -243,6 +235,7 @@ export class TonieESPTagEditorView extends LitElement {
       border-radius: 6px;
       object-fit: cover;
       background: #ddd;
+      flex-shrink: 0;
     }
 
     /* Overrides section */
@@ -253,6 +246,7 @@ export class TonieESPTagEditorView extends LitElement {
       margin-bottom: 16px;
       font-size: 13px;
       color: var(--secondary-text-color, #555);
+      box-sizing: border-box;
     }
 
     .override-item {
@@ -261,6 +255,7 @@ export class TonieESPTagEditorView extends LitElement {
       padding: 14px;
       margin-bottom: 12px;
       background: var(--card-background-color, #fff);
+      box-sizing: border-box;
     }
 
     .override-top {
@@ -273,20 +268,24 @@ export class TonieESPTagEditorView extends LitElement {
 
     .footer-actions {
       display: flex;
-      justify-content: flex-end;
-      gap: 12px;
+      flex-direction: column-reverse;
+      gap: 10px;
       margin-top: 24px;
       padding-top: 16px;
       border-top: 1px solid var(--divider-color, #eee);
+      width: 100%;
     }
 
     .btn {
-      padding: 10px 20px;
+      padding: 12px 20px;
       border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       border: none;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
     }
 
     .btn-save {
@@ -297,6 +296,61 @@ export class TonieESPTagEditorView extends LitElement {
     .btn-cancel {
       background: var(--secondary-background-color, #f0f0f0);
       color: var(--primary-text-color, #222);
+    }
+
+    /* DESKTOP & TABLET: Screen width >= 640px */
+    @media (min-width: 640px) {
+      .editor-card {
+        padding: 24px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .full-width {
+        grid-column: span 2;
+      }
+
+      .uid-group {
+        flex-direction: row;
+      }
+
+      .uid-group input {
+        flex: 1;
+        width: auto;
+      }
+
+      .btn-scan {
+        width: auto;
+        padding: 0 16px;
+      }
+
+      .media-search-group {
+        flex-direction: row;
+      }
+
+      .media-search-group input {
+        flex: 1;
+        width: auto;
+      }
+
+      .btn-search {
+        width: auto;
+        padding: 0 16px;
+      }
+
+      .footer-actions {
+        flex-direction: row;
+        justify-content: flex-end;
+      }
+
+      .footer-actions .btn {
+        width: auto;
+        padding: 10px 20px;
+      }
     }
 
     /* In-place Media Search Modal */
@@ -358,18 +412,28 @@ export class TonieESPTagEditorView extends LitElement {
 
     .modal-search-row {
       display: flex;
+      flex-direction: column;
       gap: 8px;
       margin-bottom: 14px;
+      width: 100%;
     }
 
     .modal-search-input {
-      flex: 1;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       padding: 10px 14px;
       border-radius: 8px;
       border: 1px solid var(--divider-color, #ccc);
       background: var(--card-background-color, #fff);
       color: var(--primary-text-color, #111);
       font-size: 14px;
+    }
+
+    @media (min-width: 480px) {
+      .modal-search-row {
+        flex-direction: row;
+      }
     }
 
     .modal-results-list {

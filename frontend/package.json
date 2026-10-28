@@ -1,10 +1,10 @@
 {
   "name": "tonieesp-frontend",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Home Assistant TonieESP Custom Sidepanel",
   "scripts": {
-    "build": "esbuild src/tonieesp-panel.ts --bundle --minify --format=esm --target=es2022 --outfile=../custom_components/tonieesp/frontend/tonieesp-panel.js",
-    "build:dev": "esbuild src/tonieesp-panel.ts --bundle --format=esm --target=es2022 --sourcemap --outfile=../custom_components/tonieesp/frontend/tonieesp-panel.js",
+    "build": "esbuild src/tonieesp-panel.ts --bundle --minify --format=esm --target=es2022 --outfile=../custom_components/tonieesp/frontend/tonieesp-panel.js && cp ../custom_components/tonieesp/frontend/tonieesp-panel.js ../custom_components/tonieesp/frontend/frontend.js",
+    "build:dev": "esbuild src/tonieesp-panel.ts --bundle --format=esm --target=es2022 --sourcemap --outfile=../custom_components/tonieesp/frontend/tonieesp-panel.js && cp ../custom_components/tonieesp/frontend/tonieesp-panel.js ../custom_components/tonieesp/frontend/frontend.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
